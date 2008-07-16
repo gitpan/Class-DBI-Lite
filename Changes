@@ -1,0 +1,6 @@
+Revision history for Perl extension Class::DBI::Lite.
+
+0.01  Sun Jul 13 21:42:34 2008
+	- original version; created by h2xs 1.23 with options
+		-AXn Class::DBI::Lite
+

@@ -1,0 +1,19 @@
+--- #YAML:1.0
+name:                Class-DBI-Lite
+version:             0.001
+abstract:            Lightweight ORM for Perl
+license:             ~
+author:              
+    - John Drago <jdrago_999@yahoo.com>
+generated_by:        ExtUtils::MakeMaker version 6.44
+distribution_type:   module
+requires:     
+    Class::Data::Inheritable:      0
+    DBD::SQLite:                   0
+    DBI:                           0
+    SQL::Abstract:                 0
+    SQL::Abstract::Limit:          0
+    Test::More:                    0
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.3.html
+    version: 1.3

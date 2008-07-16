@@ -1,0 +1,14 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/000-compile.t
+t/001-connection.t
+t/testdb
+lib/Class/DBI/Lite.pm
+lib/Class/DBI/Lite/Driver.pm
+lib/Class/DBI/Lite/Driver/mysql.pm
+lib/Class/DBI/Lite/Driver/SQLite.pm
+lib/Class/DBI/Lite/Iterator.pm
+
+META.yml                                 Module meta-data (added by MakeMaker)
