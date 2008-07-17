@@ -1,40 +1,54 @@
-Class-DBI-Lite version 0.01
-===========================
+NAME
+    Class::DBI::Lite - Lightweight ORM for Perl
 
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
+EXPERIMENTAL STATUS
+    **NOTE**: This module is still under development. It is likely to change
+    in dramatic ways without any warning.
 
-A README file is required for CPAN modules since CPAN extracts the
-README file from a module distribution so that people browsing the
-archive can use it get an idea of the modules uses. It is usually a
-good idea to provide version information here so that people can
-decide whether fixes for the module are worth downloading.
+    As is, this module should not (yet) be used in a production environment
+    until after v1.000.
 
-INSTALLATION
+SYNOPSIS
+      package My::Model;
+  
+      use base 'Class::DBI::Lite';
+  
+      __PACKAGE__->connection(
+        $Config->settings->dsn,
+        $Config->settings->username,
+        $Config->settings->password,
+      );
 
-To install this module type the following:
+    Then, elsewhere...
 
-   perl Makefile.PL
-   make
-   make test
-   make install
+      # Change the connection:
+      My::Model->connection( @dsn );
+  
+      my $users = My::User->retrieve_all;
+  
+      My::Model->connection( @other_dsn );
+      my $other_users = My::User->retrieve_all;
 
-DEPENDENCIES
+DESCRIPTION
+    This module is intended to serve as a drop-in replacement for the
+    venerable Class::DBI when many features of Class::DBI are simply not
+    needed, or when Ima::DBI's quirks are not wanted.
 
-This module requires these other modules and libraries:
+SEE ALSO
+    Class::DBI
 
-  blah blah blah
+TODO
+    * Documentation
+    * Near-100% code coverage
+    * Thorough code profiling
+    * Examples
 
-COPYRIGHT AND LICENCE
+AUTHOR
+    John Drago <jdrago_999@yahoo.com>.
 
-Put the correct copyright and licence information here.
+LICENSE AND COPYRIGHT
+    Copyright 2008 John Drago <jdrago_999@yahoo.com>. All rights reserved.
 
-Copyright (C) 2008 by john
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8.8 or,
-at your option, any later version of Perl 5 you may have available.
-
+    This software is Free software and may be used and distributed under the
+    same terms as perl itself.
 

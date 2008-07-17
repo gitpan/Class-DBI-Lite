@@ -1,7 +1,7 @@
 
 package Class::DBI::Lite;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002_01';
 
 use strict;
 use warnings 'all';
@@ -683,7 +683,7 @@ Class::DBI::Lite - Lightweight ORM for Perl
 B<**NOTE**:> This module is still under development.  It is likely to change
 in dramatic ways without any warning.
 
-As is, this module should 
+As is, this module should not (yet) be used in a production environment until after v1.000.
 
 =head1 SYNOPSIS
 
@@ -716,6 +716,20 @@ are not wanted.
 =head1 SEE ALSO
 
 L<Class::DBI>
+
+=head1 TODO
+
+=over 4
+
+=item * Documentation
+
+=item * Near-100% code coverage
+
+=item * Thorough code profiling
+
+=item * Examples
+
+=back
 
 =head1 AUTHOR
 
