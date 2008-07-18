@@ -1,6 +1,13 @@
 Revision history for Perl extension Class::DBI::Lite.
 
-0.01  Sun Jul 13 21:42:34 2008
+0.002   2008-07-18
+  - Triggers are now called on the correct object with the correct @_.
+
+0.002_01  2008-07-17
+  - Updated Makefile.PL to properly list all prerequisites.
+  - Updated POD.
+
+0.001 2008-07-16
 	- original version; created by h2xs 1.23 with options
 		-AXn Class::DBI::Lite
 

@@ -1,7 +1,7 @@
 
 package Class::DBI::Lite;
 
-our $VERSION = '0.002_01';
+our $VERSION = '0.002';
 
 use strict;
 use warnings 'all';
@@ -44,16 +44,16 @@ my %Live_Objects = ( );
 #==============================================================================
 BEGIN
 {
-__PACKAGE__->mk_classdata('_table');
-__PACKAGE__->mk_classdata('_handles' => { });
-__PACKAGE__->mk_classdata('_dbh');
-__PACKAGE__->mk_classdata('_columns' => { });
-__PACKAGE__->mk_classdata('_dsn');
-__PACKAGE__->mk_classdata('_schema');
-__PACKAGE__->mk_classdata('_driver');
-__PACKAGE__->mk_classdata('_has_a_rels' => { });
-__PACKAGE__->mk_classdata('_has_many_rels' => { });
-__PACKAGE__->mk_classdata('_triggers' => { });
+  __PACKAGE__->mk_classdata('_table');
+  __PACKAGE__->mk_classdata('_handles' => { });
+  __PACKAGE__->mk_classdata('_dbh');
+  __PACKAGE__->mk_classdata('_columns' => { });
+  __PACKAGE__->mk_classdata('_dsn');
+  __PACKAGE__->mk_classdata('_schema');
+  __PACKAGE__->mk_classdata('_driver');
+  __PACKAGE__->mk_classdata('_has_a_rels' => { });
+  __PACKAGE__->mk_classdata('_has_many_rels' => { });
+  __PACKAGE__->mk_classdata('_triggers' => { });
 }
 
 
@@ -603,10 +603,11 @@ sub _call_triggers
   my ($s, $event) = @_;
   
   my $handlers = $s->_triggers->{ $s->table }->{ $event };
-  foreach(  @$handlers )
+  shift;shift;
+  foreach my $handler (  @$handlers )
   {
     eval {
-      $_->( $s );
+      $handler->( $s, @_ );
       1;
     } or confess $@;
   }# end foreach()
