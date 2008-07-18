@@ -1,7 +1,7 @@
 
 package Class::DBI::Lite;
 
-our $VERSION = '0.002';
+our $VERSION = '0.003';
 
 use strict;
 use warnings 'all';
@@ -290,7 +290,12 @@ sub create
   my $PK = $s->_columns_primary;
   my %create_fields = map { $_ => $data->{$_} } grep { $_ ne $PK } $s->_columns_all;
   
-  $s->_call_triggers( before_create => \%create_fields );
+  my $pre_obj = bless {
+    __id => undef,
+    __Changed => { },
+    %create_fields
+  }, ref($s) ? ref($s) : $s;
+  $pre_obj->_call_triggers( before_create => \%create_fields );
   
   my @fields  = map { $_ } sort grep { exists($data->{$_}) } keys(%create_fields);
   my @vals    = map { $data->{$_} } sort grep { exists($data->{$_}) } keys(%create_fields);
@@ -304,12 +309,14 @@ sub create
     )
 
   my $sth = $s->_dbh->prepare_cached( $sql );
-  $sth->execute( @vals );
+  $sth->execute( map { $pre_obj->$_ } @fields );
   my $id = $s->_driver->get_last_insert_id;
   $sth->finish();
   
   my $obj = $s->retrieve( $id );
-  $s->_call_triggers( after_create => $obj );
+  $obj->_call_triggers( after_create => $obj );
+  delete($pre_obj->{__Changed});
+  undef(%$pre_obj);
   return $obj;
 }# end create()
 

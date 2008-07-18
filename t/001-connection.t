@@ -20,6 +20,7 @@ package My::User;
 use strict;
 use warnings 'all';
 use base 'My::Model';
+use Data::Dumper;
 
 __PACKAGE__->set_up_table('users');
 
@@ -33,10 +34,13 @@ __PACKAGE__->add_trigger( after_update => sub {
 
 __PACKAGE__->add_trigger( before_create => sub {
   my $s = shift;
+  $s->user_last_name( uc($s->user_last_name) );
 });
 
 __PACKAGE__->add_trigger( after_create => sub {
   my $s = shift;
+  $s->user_last_name( ucfirst($s->user_last_name) );
+  $s->update;
 });
 
 __PACKAGE__->add_trigger( before_delete => sub {
@@ -74,8 +78,6 @@ __PACKAGE__->has_a(
     'My::State' =>
       'state_id'
 );
-
-#sub state { My::State->retrieve( shift->state_id ) }
 
 
 package main;
@@ -299,7 +301,7 @@ my $userID;
     state_name => 'Colorado',
     state_abbr => 'CO'
   });
-  for( 1...1_000 )
+  for( 1...100 )
   {
     my $city = $state->add_to_cities({
       city_name => 'Denver' . $_
@@ -309,7 +311,7 @@ my $userID;
     );
   }# end for()
   is(
-    $state->cities->count => 1000
+    $state->cities->count => 100
   );
   $state->delete;
   is(

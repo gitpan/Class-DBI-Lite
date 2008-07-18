@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.003   2008-07-18
+  - OK, *now* triggers are called on the correct objects.
+
 0.002   2008-07-18
   - Triggers are now called on the correct object with the correct @_.
 
