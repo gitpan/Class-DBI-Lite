@@ -1,7 +1,7 @@
 
 package Class::DBI::Lite;
 
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 
 use strict;
 use warnings 'all';
@@ -123,11 +123,11 @@ sub _columns_all
   
   if( @_ )
   {
-    $s->_columns->{$s->table}->{all} = [ @_ ];
+    $s->_columns->{$s->_table}->{all} = [ @_ ];
   }
   else
   {
-    @{ $s->_columns->{$s->table}->{all} };
+    @{ $s->_columns->{$s->_table}->{all} };
   }# end if()
 }# end _columns_all()
 
@@ -139,13 +139,34 @@ sub _columns_primary
   
   if( @_ )
   {
-    $s->_columns->{$s->table}->{primary} = [ @_ ];
+    $s->_columns->{$s->_table}->{primary} = [ @_ ];
   }
   else
   {
-    $s->_columns->{$s->table}->{primary}->[0];
+    $s->_columns->{$s->_table}->{primary}->[0];
   }# end if()
 }# end _columns_primary()
+
+
+#==============================================================================
+sub _columns_essential
+{
+  my $s = shift;
+  
+  if( my @cols = @_ )
+  {
+    # Make sure to include the PK:
+    my $PK = $s->_columns_primary;
+    unshift(@cols, $PK) unless grep { $_ eq $PK } @cols;
+    
+    $s->_columns->{$s->_table}->{essential} = \@cols;
+  }
+  else
+  {
+    # Try for essential, but default to primary:
+    @{ $s->_columns->{$s->_table}->{essential} };
+  }# end if()
+}# end _columns_essential()
 
 
 #==============================================================================
@@ -163,13 +184,16 @@ sub set_up_table
     require $driver_file unless @{"$driver_class\::ISA"};
     1;
   } or confess "Cannot load driver class '$driver_class': $@";
+  $class->_columns->{$class->_table}->{essential} = [ ];
   
   # Have the driver take care of any additional setup:
   $class->_driver(
     $driver_class->new(
       root => $class,
     )
-  )->set_up_table( $class->table );
+  )->set_up_table( $class->_table );
+  $class->_columns_essential( $class->_columns_primary )
+    unless $class->_columns_essential;
 }# end set_up_table()
 
 
@@ -180,6 +204,15 @@ sub table
   
   @_ ? $class->set_up_table( @_ ) : $class->_table;
 }# end table()
+
+
+#==============================================================================
+sub triggers
+{
+  my $s = shift;
+  $s->_triggers->{ $s->_table } ||= { };
+  $s->_triggers->{ $s->_table };
+}# end triggers()
 
 
 #==============================================================================
@@ -202,6 +235,15 @@ sub construct
     if $Weaken_Is_Available;
   return $obj;
 }# end construct()
+
+
+#==============================================================================
+sub deconstruct
+{
+  my $s = shift;
+  
+  bless $s, 'Class::DBI::Lite::Object::Has::Been::Deleted';
+}# end deconstruct()
 
 
 #==============================================================================
@@ -247,8 +289,7 @@ sub retrieve_from_sql
 {
   my ($s, $sql, @bind) = @_;
   
-  $sql = "SELECT * FROM @{[ $s->table ]}" . ( $sql ? " WHERE $sql " : "" );
-
+  $sql = "SELECT @{[ join ', ', $s->_columns_essential ]} FROM @{[ $s->_table ]}" . ( $sql ? " WHERE $sql " : "" );
   my $sth = $s->_dbh->prepare_cached( $sql );
   $sth->execute( @bind );
   
@@ -295,29 +336,51 @@ sub create
     __Changed => { },
     %create_fields
   }, ref($s) ? ref($s) : $s;
-  $pre_obj->_call_triggers( before_create => \%create_fields );
   
-  my @fields  = map { $_ } sort grep { exists($data->{$_}) } keys(%create_fields);
-  my @vals    = map { $data->{$_} } sort grep { exists($data->{$_}) } keys(%create_fields);
-  
-  my $sql = <<"";
-    INSERT INTO @{[ $s->table ]} (
-      @{[ join ',', @fields ]}
-    )
-    VALUES (
-      @{[ join ',', map {"?"} @vals ]}
-    )
+  local $s->_dbh->{AutoCommit} = 0;
+  my $obj = eval {
+    $pre_obj->_call_triggers( before_create => \%create_fields );
+    
+    my @fields  = map { $_ } sort grep { exists($data->{$_}) } keys(%create_fields);
+    my @vals    = map { $data->{$_} } sort grep { exists($data->{$_}) } keys(%create_fields);
+    
+    my $sql = <<"";
+      INSERT INTO @{[ $s->table ]} (
+        @{[ join ',', @fields ]}
+      )
+      VALUES (
+        @{[ join ',', map {"?"} @vals ]}
+      )
 
-  my $sth = $s->_dbh->prepare_cached( $sql );
-  $sth->execute( map { $pre_obj->$_ } @fields );
-  my $id = $s->_driver->get_last_insert_id;
-  $sth->finish();
-  
-  my $obj = $s->retrieve( $id );
-  $obj->_call_triggers( after_create => $obj );
-  delete($pre_obj->{__Changed});
-  undef(%$pre_obj);
-  return $obj;
+    my $sth = $s->_dbh->prepare_cached( $sql );
+    $sth->execute( map { $pre_obj->$_ } @fields );
+    my $id = $s->_driver->get_last_insert_id;
+    $sth->finish();
+    
+    my $obj = $s->retrieve( $id );
+    $obj->_call_triggers( after_create => $obj );
+    delete($pre_obj->{__Changed});
+    undef(%$pre_obj);
+    $s->dbi_commit;
+    $obj;
+  };
+  if( my $trans_error = $@ )
+  {
+    eval { $s->dbi_rollback };
+    if( my $rollback_error = $@ )
+    {
+      confess "Both transaction and rollback failed:\n\tTransaction error: $trans_error\n\tRollback Error: $rollback_error";
+    }
+    else
+    {
+      confess "Transaction failed but rollback succeeded:\n\tTransaction error: $trans_error";
+    }# end if()
+  }
+  else
+  {
+    # Success:
+    return $obj;
+  }# end if()
 }# end create()
 
 
@@ -329,24 +392,45 @@ sub update
   
   return unless $s->{__Changed} && keys(%{ $s->{__Changed} });
   
-  $s->_call_triggers( before_update => $s );
-  
-  my @fields  = map { "$_ = ?" } grep { $s->{__Changed}->{$_} } sort keys(%$s);
-  my @vals    = map { $s->{$_} } grep { $s->{__Changed}->{$_} } sort keys(%$s);
-  
-  # Make our SQL:
-  my $sql = <<"";
-    UPDATE @{[ $s->table ]} SET
-      @{[ join ', ', @fields ]}
-    WHERE @{[ $s->_columns_primary ]} = ?
+  local $s->_dbh->{AutoCommit} = 0;
+  eval {
+    $s->_call_triggers( before_update => $s );
+    
+    my @fields  = map { "$_ = ?" } grep { $s->{__Changed}->{$_} } sort keys(%$s);
+    my @vals    = map { $s->{$_} } grep { $s->{__Changed}->{$_} } sort keys(%$s);
+    
+    # Make our SQL:
+    my $sql = <<"";
+      UPDATE @{[ $s->table ]} SET
+        @{[ join ', ', @fields ]}
+      WHERE @{[ $s->_columns_primary ]} = ?
 
-  my $sth = $s->_dbh->prepare_cached( $sql );
-  $sth->execute( @vals, $s->id );
-  $sth->finish();
+    my $sth = $s->_dbh->prepare_cached( $sql );
+    $sth->execute( @vals, $s->id );
+    $sth->finish();
+    
+    $s->{__Changed} = undef;
+    $s->_call_triggers( after_update => $s );
+    $s->dbi_commit;
+  };
   
-  $s->{__Changed} = undef;
-  $s->_call_triggers( after_update => $s );
-  return 1;
+  if( my $trans_error = $@ )
+  {
+    eval { $s->dbi_rollback };
+    if( my $rollback_error = $@ )
+    {
+      confess "Both transaction and rollback failed:\n\tTransaction error: $trans_error\n\tRollback Error: $rollback_error";
+    }
+    else
+    {
+      confess "Transaction failed but rollback succeeded:\n\tTransaction error: $trans_error";
+    }# end if()
+  }
+  else
+  {
+    # Success:
+    return 1;
+  }# end if()
 }# end update()
 
 
@@ -357,25 +441,44 @@ sub delete
   
   confess "$s\->delete cannot be called without an object" unless ref($s);
   
-  $s->_call_triggers( before_delete => $s );
-  
-  my $sql = <<"";
-    DELETE FROM @{[ $s->table ]}
-    WHERE @{[ $s->_columns_primary ]} = ?
+  local $s->_dbh->{AutoCommit} = 0;
+  eval {
+    $s->_call_triggers( before_delete => $s );
+    
+    my $sql = <<"";
+      DELETE FROM @{[ $s->table ]}
+      WHERE @{[ $s->_columns_primary ]} = ?
 
-  my $sth = $s->_dbh->prepare_cached( $sql );
-  $sth->execute( $s->id );
-  $sth->finish();
-  
-  my $deleted = bless { $s->primary_column => $s->id }, ref($s);
-  my $key = ref($s) . ':' . $s->id;
-  $s->_call_triggers( after_delete => $deleted );
-  delete($Live_Objects{$key});
-  undef(%$deleted);
-  
-  undef(%$s);
-  bless $s, 'Class::DBI::Lite::Object::Has::Been::Deleted';
-  return 1;
+    my $sth = $s->_dbh->prepare_cached( $sql );
+    $sth->execute( $s->id );
+    $sth->finish();
+    
+    my $deleted = bless { $s->primary_column => $s->id }, ref($s);
+    my $key = ref($s) . ':' . $s->id;
+    $s->_call_triggers( after_delete => $deleted );
+    delete($Live_Objects{$key});
+    undef(%$deleted);
+    
+    undef(%$s);
+    $s->dbi_commit;
+  };
+  if( my $trans_error = $@ )
+  {
+    eval { $s->dbi_rollback };
+    if( my $rollback_error = $@ )
+    {
+      confess "Both transaction and rollback failed:\n\tTransaction error: $trans_error\n\tRollback Error: $rollback_error";
+    }
+    else
+    {
+      confess "Transaction failed but rollback succeeded:\n\tTransaction error: $trans_error";
+    }# end if()
+  }
+  else
+  {
+    # Success:
+    return bless $s, 'Class::DBI::Lite::Object::Has::Been::Deleted';
+  }# end if()
 }# end delete()
 
 
@@ -399,7 +502,7 @@ sub count_search
 {
   my ($s, %args) = @_;
   
-  my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} WHERE ";
+  my $sql = "SELECT COUNT(*) FROM @{[ $s->_table ]} WHERE ";
 
   my @sql_parts = map { "$_ = ?" } sort keys(%args);
   my @sql_vals  = map { $args{$_} } sort keys(%args);
@@ -434,7 +537,7 @@ sub count_search_like
 {
   my ($s, %args) = @_;
   
-  my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} WHERE ";
+  my $sql = "SELECT COUNT(*) FROM @{[ $s->_table ]} WHERE ";
 
   my @sql_parts = map { "$_ LIKE ?" } sort keys(%args);
   my @sql_vals  = map { $args{$_} } sort keys(%args);
@@ -483,7 +586,7 @@ sub count_search_where
   my($phrase, @bind) = $abstract->where($where, $order, $limit, $offset);
   $phrase =~ s/^\s*WHERE\s*//i;
   
-  my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} WHERE $phrase";
+  my $sql = "SELECT COUNT(*) FROM @{[ $s->_table ]} WHERE $phrase";
   my $sth = $s->_dbh->prepare_cached($sql);
   $sth->execute( @bind );
   my ($count) = $sth->fetchrow;
@@ -551,7 +654,37 @@ sub _add_relationship
       my $s = shift;
       # XXX: Maybe change this to simply delete (via SQL) from $otherclass->table
       # where $FK = $s->id:
-      $_->delete foreach $s->$method;
+      local $s->_dbh->{AutoCommit} = 0;
+      eval {
+        if( keys(%{$otherclass->triggers}) )
+        {
+          $_->delete foreach $s->$method;
+        }
+        else
+        {
+          # Get a list of keys to remove from the object index:
+          {
+            my $sth = $s->_dbh->prepare("SELECT @{[ $otherclass->primary_column ]} FROM @{[ $otherclass->_table ]} WHERE $FK = ?");
+            $sth->execute( $s->$FK );
+            my @ids = map { $_->[0] } @{ $sth->fetchall_arrayref };
+            $sth->finish();
+            map {
+              my $key = "$otherclass:$_";
+              if( exists($Live_Objects{$key}) )
+              {
+                $Live_Objects{$key}->deconstruct;
+                delete($Live_Objects{$key});
+              }# end if()
+            } @ids;
+          }
+          
+          # Finally delete them:
+          my $sth = $s->_dbh->prepare("DELETE FROM @{[ $otherclass->_table ]} WHERE $FK = ?");
+          $sth->execute( $s->$FK );
+          $sth->finish();
+        }# end if()
+      };
+
     });
   }
   elsif( $type eq 'has_a' )
@@ -571,10 +704,10 @@ sub add_trigger
 {
   my ($class, $event, $handler) = @_;
   
-  $class->_triggers->{ $class->table } ||= { };
-  $class->_triggers->{ $class->table }->{ $event } ||= [ ];
+  $class->_triggers->{ $class->_table } ||= { };
+  $class->_triggers->{ $class->_table }->{ $event } ||= [ ];
   push @{
-    $class->_triggers->{ $class->table }->{ $event }
+    $class->_triggers->{ $class->_table }->{ $event }
   }, $handler;
 }# end add_trigger()
 
@@ -609,7 +742,7 @@ sub _call_triggers
 {
   my ($s, $event) = @_;
   
-  my $handlers = $s->_triggers->{ $s->table }->{ $event };
+  my $handlers = $s->_triggers->{ $s->_table }->{ $event };
   shift;shift;
   foreach my $handler (  @$handlers )
   {
@@ -622,6 +755,26 @@ sub _call_triggers
 
 
 #==============================================================================
+sub _flesh_out
+{
+  my $s = shift;
+  
+  my @missing_fields = grep { ! exists($s->{$_}) } $s->columns;
+  my $sth = $s->_dbh->prepare(<<"");
+    SELECT @{[ join ', ', @missing_fields ]}
+    FROM @{[ $s->table ]}
+    WHERE @{[ $s->primary_column ]} = ?
+
+  $sth->execute( $s->id );
+  my $rec = $sth->fetchrow_hashref;
+  $sth->finish();
+  
+  $s->{$_} = $rec->{$_} foreach @missing_fields;
+  return 1;
+}# end _flesh_out()
+
+
+#==============================================================================
 sub AUTOLOAD
 {
   my $s = shift;
@@ -630,6 +783,7 @@ sub AUTOLOAD
 
   if( my ($col) = grep { $_ eq $name } $s->_columns_all )
   {
+    exists($s->{$col}) or $s->_flesh_out;
     if( @_ )
     {
       $s->{__Changed} ||= { };
