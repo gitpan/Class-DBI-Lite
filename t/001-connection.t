@@ -28,6 +28,18 @@ __PACKAGE__->add_trigger( before_update => sub {
   my $s = shift;
 });
 
+__PACKAGE__->add_trigger( before_set_user_first_name => sub {
+  my ($s, $oldval, $newval) = @_;
+});
+
+__PACKAGE__->add_trigger( before_update_user_first_name => sub {
+  my ($s, $oldval, $newval) = @_;
+});
+
+__PACKAGE__->add_trigger( after_update_user_first_name => sub {
+  my ($s, $oldval, $newval) = @_;
+});
+
 __PACKAGE__->add_trigger( after_update => sub {
   my $s = shift;
 });
@@ -353,6 +365,13 @@ my $userID;
     );
   }# end while()
 }
+
+my ($city) = My::City->retrieve_all->first;
+$city->remove_from_object_index;
+is(
+  $city => undef
+);
+
 
 # connection-switching:
 {

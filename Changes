@@ -1,5 +1,21 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.006   2008-07-18
+  - $obj->remove_from_object_index() removes it from memory AND the %Live_Objects cache.
+
+0.005   2008-07-18
+  - $obj->delete on an object that has_many will delete its has_many records
+    via straight SQL unless the has_many class has before/after_delete triggers.
+  - added new trigger events:
+      before_set_$column( $s, $oldval, $newval )
+      after_set_$column( $s, $oldval, $newval )
+      before_update_$column( $s, $oldval, $newval )
+      after_update_$column( $s, $oldval, $newval )
+  - Updating a field value with the same value as the old value is ignored.
+
+0.004   2008-07-18
+  - All create/update/delete/add_to_* actions are performed within transactions.
+
 0.003   2008-07-18
   - OK, *now* triggers are called on the correct objects.
 

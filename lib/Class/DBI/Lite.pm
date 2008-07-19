@@ -1,7 +1,7 @@
 
 package Class::DBI::Lite;
 
-our $VERSION = '0.004';
+our $VERSION = '0.006';
 
 use strict;
 use warnings 'all';
@@ -17,33 +17,18 @@ use overload
   bool => sub { eval { $_[0]->id } },
   fallback => 1;
 
-use vars qw($Weaken_Is_Available);
-
-BEGIN {
+#==============================================================================
+BEGIN
+{
+  use vars qw( %Live_Objects %DBI_OPTIONS $Weaken_Is_Available );
+  
 	$Weaken_Is_Available = 1;
 	eval {
 		require Scalar::Util;
 		import Scalar::Util qw(weaken);
 	};
-	if ($@) {
-		$Weaken_Is_Available = 0;
-	}
-}
-
-our %DBI_OPTIONS = (
-  FetchHashKeyName    => 'NAME_lc',
-  ShowErrorStatement  => 1,
-  ChopBlanks          => 1,
-  AutoCommit          => 1,
-  RaiseError          => 1,
-  RootClass           => 'DBIx::ContextualFetch',
-);
-
-my %Live_Objects = ( );
-
-#==============================================================================
-BEGIN
-{
+	$Weaken_Is_Available = 0 if $@;
+	
   __PACKAGE__->mk_classdata('_table');
   __PACKAGE__->mk_classdata('_handles' => { });
   __PACKAGE__->mk_classdata('_dbh');
@@ -54,7 +39,16 @@ BEGIN
   __PACKAGE__->mk_classdata('_has_a_rels' => { });
   __PACKAGE__->mk_classdata('_has_many_rels' => { });
   __PACKAGE__->mk_classdata('_triggers' => { });
-}
+  
+  %DBI_OPTIONS = (
+    FetchHashKeyName    => 'NAME_lc',
+    ShowErrorStatement  => 1,
+    ChopBlanks          => 1,
+    AutoCommit          => 1,
+    RaiseError          => 1,
+    RootClass           => 'DBIx::ContextualFetch',
+  );
+}# end BEGIN
 
 
 #==============================================================================
@@ -209,9 +203,14 @@ sub table
 #==============================================================================
 sub triggers
 {
-  my $s = shift;
+  my ($s, $event) = @_;
+  
   $s->_triggers->{ $s->_table } ||= { };
-  $s->_triggers->{ $s->_table };
+  my $triggers = $s->_triggers->{ $s->_table };
+  return $triggers unless $event;
+  
+  $triggers->{ $event } ||= [ ];
+  return @{$triggers->{ $event }};
 }# end triggers()
 
 
@@ -369,11 +368,14 @@ sub create
     eval { $s->dbi_rollback };
     if( my $rollback_error = $@ )
     {
-      confess "Both transaction and rollback failed:\n\tTransaction error: $trans_error\n\tRollback Error: $rollback_error";
+      confess join "\n\t",  "Both transaction and rollback failed:",
+                            "Transaction error: $trans_error",
+                            "Rollback Error: $rollback_error";
     }
     else
     {
-      confess "Transaction failed but rollback succeeded:\n\tTransaction error: $trans_error";
+      confess join "\n\t",  "Transaction failed but rollback succeeded:",
+                            "Transaction error: $trans_error";
     }# end if()
   }
   else
@@ -396,8 +398,14 @@ sub update
   eval {
     $s->_call_triggers( before_update => $s );
     
-    my @fields  = map { "$_ = ?" } grep { $s->{__Changed}->{$_} } sort keys(%$s);
-    my @vals    = map { $s->{$_} } grep { $s->{__Changed}->{$_} } sort keys(%$s);
+    my $changed = $s->{__Changed};
+    my @fields  = map { "$_ = ?" } grep { $changed->{$_} } sort keys(%$s);
+    my @vals    = map { $s->{$_} } grep { $changed->{$_} } sort keys(%$s);
+    
+    foreach my $field ( keys(%$s) )
+    {
+      $s->_call_triggers( "before_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
+    }# end foreach()
     
     # Make our SQL:
     my $sql = <<"";
@@ -409,6 +417,11 @@ sub update
     $sth->execute( @vals, $s->id );
     $sth->finish();
     
+    foreach my $field ( keys(%$s) )
+    {
+      $s->_call_triggers( "after_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
+    }# end foreach()
+    
     $s->{__Changed} = undef;
     $s->_call_triggers( after_update => $s );
     $s->dbi_commit;
@@ -419,11 +432,14 @@ sub update
     eval { $s->dbi_rollback };
     if( my $rollback_error = $@ )
     {
-      confess "Both transaction and rollback failed:\n\tTransaction error: $trans_error\n\tRollback Error: $rollback_error";
+      confess join "\n\t",  "Both transaction and rollback failed:",
+                            "Transaction error: $trans_error",
+                            "Rollback Error: $rollback_error";
     }
     else
     {
-      confess "Transaction failed but rollback succeeded:\n\tTransaction error: $trans_error";
+      confess join "\n\t",  "Transaction failed but rollback succeeded:",
+                            "Transaction error: $trans_error";
     }# end if()
   }
   else
@@ -467,17 +483,20 @@ sub delete
     eval { $s->dbi_rollback };
     if( my $rollback_error = $@ )
     {
-      confess "Both transaction and rollback failed:\n\tTransaction error: $trans_error\n\tRollback Error: $rollback_error";
+      confess join "\n\t",  "Both transaction and rollback failed:",
+                            "Transaction error: $trans_error",
+                            "Rollback Error: $rollback_error";
     }
     else
     {
-      confess "Transaction failed but rollback succeeded:\n\tTransaction error: $trans_error";
+      confess join "\n\t",  "Transaction failed but rollback succeeded:",
+                            "Transaction error: $trans_error";
     }# end if()
   }
   else
   {
     # Success:
-    return bless $s, 'Class::DBI::Lite::Object::Has::Been::Deleted';
+    $s->deconstruct;
   }# end if()
 }# end delete()
 
@@ -656,7 +675,11 @@ sub _add_relationship
       # where $FK = $s->id:
       local $s->_dbh->{AutoCommit} = 0;
       eval {
-        if( keys(%{$otherclass->triggers}) )
+        my @triggers = grep { $_ } (
+          $otherclass->triggers('before_delete'),
+          $otherclass->triggers('after_delete'),
+        );
+        if( @triggers )
         {
           $_->delete foreach $s->$method;
         }
@@ -707,7 +730,7 @@ sub add_trigger
   $class->_triggers->{ $class->_table } ||= { };
   $class->_triggers->{ $class->_table }->{ $event } ||= [ ];
   push @{
-    $class->_triggers->{ $class->_table }->{ $event }
+    $class->triggers->{$event}
   }, $handler;
 }# end add_trigger()
 
@@ -718,6 +741,15 @@ sub dbi_commit
   my $s = shift;
   $s->_dbh->commit;
 }# end dbi_commit()
+
+
+#==============================================================================
+sub remove_from_object_index
+{
+  my $s = shift;
+  my $obj = delete($Live_Objects{ ref($s) . ':' . $s->id });
+  undef(%$obj);
+}# end remove_from_object_index()
 
 
 #==============================================================================
@@ -742,9 +774,9 @@ sub _call_triggers
 {
   my ($s, $event) = @_;
   
-  my $handlers = $s->_triggers->{ $s->_table }->{ $event };
+  return unless my @handlers = $s->triggers( $event );
   shift;shift;
-  foreach my $handler (  @$handlers )
+  foreach my $handler ( @handlers )
   {
     eval {
       $handler->( $s, @_ );
@@ -759,7 +791,7 @@ sub _flesh_out
 {
   my $s = shift;
   
-  my @missing_fields = grep { ! exists($s->{$_}) } $s->columns;
+  my @missing_fields = grep { ! exists($s->{$_}) } $s->_columns_all;
   my $sth = $s->_dbh->prepare(<<"");
     SELECT @{[ join ', ', @missing_fields ]}
     FROM @{[ $s->table ]}
@@ -786,11 +818,15 @@ sub AUTOLOAD
     exists($s->{$col}) or $s->_flesh_out;
     if( @_ )
     {
+      my $newval = shift;
+      no warnings 'uninitialized';
+      return $newval if $newval eq $s->{$name};
       $s->{__Changed} ||= { };
+      $s->_call_triggers( "before_set_$name", $s->{$name}, $newval );
       $s->{__Changed}->{$name} = {
         oldval => $s->{$name}
       };
-      return $s->{$name} = shift;
+      return $s->{$name} = $newval;
     }
     else
     {
