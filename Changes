@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.007   2008-08-01
+  - discard_changes() now correctly discards changes.
+  - Updated POD to mention DBIx::Class and DBIx::Class::CDBICompat.
+  - Added a memcycle test to check for any memory leaks.
+
 0.006   2008-07-18
   - $obj->remove_from_object_index() removes it from memory AND the %Live_Objects cache.
 

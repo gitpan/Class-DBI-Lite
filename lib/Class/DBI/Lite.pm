@@ -1,7 +1,7 @@
 
 package Class::DBI::Lite;
 
-our $VERSION = '0.006';
+our $VERSION = '0.007';
 
 use strict;
 use warnings 'all';
@@ -765,6 +765,7 @@ sub discard_changes
 {
   my $s = shift;
   
+  $s->{__Changed} = { };
   $s = ref($s)->retrieve( $s->id );
 }# end discard_changes()
 
@@ -913,7 +914,10 @@ are not wanted.
 
 =head1 SEE ALSO
 
-L<Class::DBI>
+The venerable L<Class::DBI>.
+
+If you are looking for a modern, robust Perl ORM with a larger support community,
+check out L<DBIx::Class>.  It also has a Class::DBI combatibility layer - L<DBIx::Class::CDBICompat>.
 
 =head1 TODO
 

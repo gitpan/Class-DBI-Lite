@@ -35,7 +35,11 @@ DESCRIPTION
     needed, or when Ima::DBI's quirks are not wanted.
 
 SEE ALSO
-    Class::DBI
+    The venerable Class::DBI.
+
+    If you are looking for a modern, robust Perl ORM with a larger support
+    community, check out DBIx::Class. It also has a Class::DBI combatibility
+    layer - DBIx::Class::CDBICompat.
 
 TODO
     * Documentation
