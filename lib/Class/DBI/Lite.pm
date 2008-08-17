@@ -1,7 +1,7 @@
 
 package Class::DBI::Lite;
 
-our $VERSION = '0.007';
+our $VERSION = '0.008';
 
 use strict;
 use warnings 'all';
@@ -20,7 +20,7 @@ use overload
 #==============================================================================
 BEGIN
 {
-  use vars qw( %Live_Objects %DBI_OPTIONS $Weaken_Is_Available );
+  use vars qw( %Live_Objects %DBI_OPTIONS $Weaken_Is_Available $LastPingTime );
   
 	$Weaken_Is_Available = 1;
 	eval {
@@ -52,16 +52,19 @@ BEGIN
 
 
 #==============================================================================
+my @DSN;
 sub connection
 {
   my ($class, @dsn) = @_;
   
   confess "Usage: $class\->connection( \@dsn )"
     unless @dsn;
+  @DSN = @dsn;
   my $key = join ':', @dsn[0...2];
   $class->_dsn( $dsn[0] );
   my (undef, undef, $schema) = split /:/, $class->_dsn;
   $class->_schema( $schema );
+  $LastPingTime = time();
   if( my $h = $class->_handles->{$key} )
   {
     $class->_dbh( $h->{dbh} );
@@ -82,7 +85,26 @@ sub connection
 sub db_Main
 {
   my $class = shift;
-  $class->_dbh;
+  
+  if( time() < $LastPingTime + 5 )
+  {
+    # It's been less than 5 seconds:
+    return $class->_dbh;
+  }
+  else
+  {
+    # Try pinging:
+    $LastPingTime = time();
+    if( $class->_dbh->ping )
+    {
+      return $class->_dbh;
+    }
+    else
+    {
+      $class->connection( @DSN );
+      return $class->_dbh;
+    }# end if()
+  }# end if()
 }# end db_Main()
 
 
@@ -289,7 +311,7 @@ sub retrieve_from_sql
   my ($s, $sql, @bind) = @_;
   
   $sql = "SELECT @{[ join ', ', $s->_columns_essential ]} FROM @{[ $s->_table ]}" . ( $sql ? " WHERE $sql " : "" );
-  my $sth = $s->_dbh->prepare_cached( $sql );
+  my $sth = $s->db_Main->prepare_cached( $sql );
   $sth->execute( @bind );
   
   return $s->sth_to_objects( $sth );
@@ -336,7 +358,7 @@ sub create
     %create_fields
   }, ref($s) ? ref($s) : $s;
   
-  local $s->_dbh->{AutoCommit} = 0;
+  local $s->db_Main->{AutoCommit} = 0;
   my $obj = eval {
     $pre_obj->_call_triggers( before_create => \%create_fields );
     
@@ -351,7 +373,7 @@ sub create
         @{[ join ',', map {"?"} @vals ]}
       )
 
-    my $sth = $s->_dbh->prepare_cached( $sql );
+    my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( map { $pre_obj->$_ } @fields );
     my $id = $s->_driver->get_last_insert_id;
     $sth->finish();
@@ -394,7 +416,7 @@ sub update
   
   return unless $s->{__Changed} && keys(%{ $s->{__Changed} });
   
-  local $s->_dbh->{AutoCommit} = 0;
+  local $s->db_Main->{AutoCommit} = 0;
   eval {
     $s->_call_triggers( before_update => $s );
     
@@ -413,7 +435,7 @@ sub update
         @{[ join ', ', @fields ]}
       WHERE @{[ $s->_columns_primary ]} = ?
 
-    my $sth = $s->_dbh->prepare_cached( $sql );
+    my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( @vals, $s->id );
     $sth->finish();
     
@@ -457,7 +479,7 @@ sub delete
   
   confess "$s\->delete cannot be called without an object" unless ref($s);
   
-  local $s->_dbh->{AutoCommit} = 0;
+  local $s->db_Main->{AutoCommit} = 0;
   eval {
     $s->_call_triggers( before_delete => $s );
     
@@ -465,7 +487,7 @@ sub delete
       DELETE FROM @{[ $s->table ]}
       WHERE @{[ $s->_columns_primary ]} = ?
 
-    my $sth = $s->_dbh->prepare_cached( $sql );
+    my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( $s->id );
     $sth->finish();
     
@@ -527,7 +549,7 @@ sub count_search
   my @sql_vals  = map { $args{$_} } sort keys(%args);
   $sql .= join ' AND ', @sql_parts;
   
-  my $sth = $s->_dbh->prepare_cached( $sql );
+  my $sth = $s->db_Main->prepare_cached( $sql );
   $sth->execute( @sql_vals );
   my ($count) = $sth->fetchrow;
   $sth->finish();
@@ -562,7 +584,7 @@ sub count_search_like
   my @sql_vals  = map { $args{$_} } sort keys(%args);
   $sql .= join ' AND ', @sql_parts;
   
-  my $sth = $s->_dbh->prepare_cached( $sql );
+  my $sth = $s->db_Main->prepare_cached( $sql );
   $sth->execute( @sql_vals );
   my ($count) = $sth->fetchrow;
   $sth->finish();
@@ -606,7 +628,7 @@ sub count_search_where
   $phrase =~ s/^\s*WHERE\s*//i;
   
   my $sql = "SELECT COUNT(*) FROM @{[ $s->_table ]} WHERE $phrase";
-  my $sth = $s->_dbh->prepare_cached($sql);
+  my $sth = $s->db_Main->prepare_cached($sql);
   $sth->execute( @bind );
   my ($count) = $sth->fetchrow;
   $sth->finish;
@@ -673,7 +695,7 @@ sub _add_relationship
       my $s = shift;
       # XXX: Maybe change this to simply delete (via SQL) from $otherclass->table
       # where $FK = $s->id:
-      local $s->_dbh->{AutoCommit} = 0;
+      local $s->db_Main->{AutoCommit} = 0;
       eval {
         my @triggers = grep { $_ } (
           $otherclass->triggers('before_delete'),
@@ -687,7 +709,7 @@ sub _add_relationship
         {
           # Get a list of keys to remove from the object index:
           {
-            my $sth = $s->_dbh->prepare("SELECT @{[ $otherclass->primary_column ]} FROM @{[ $otherclass->_table ]} WHERE $FK = ?");
+            my $sth = $s->db_Main->prepare("SELECT @{[ $otherclass->primary_column ]} FROM @{[ $otherclass->_table ]} WHERE $FK = ?");
             $sth->execute( $s->$FK );
             my @ids = map { $_->[0] } @{ $sth->fetchall_arrayref };
             $sth->finish();
@@ -702,7 +724,7 @@ sub _add_relationship
           }
           
           # Finally delete them:
-          my $sth = $s->_dbh->prepare("DELETE FROM @{[ $otherclass->_table ]} WHERE $FK = ?");
+          my $sth = $s->db_Main->prepare("DELETE FROM @{[ $otherclass->_table ]} WHERE $FK = ?");
           $sth->execute( $s->$FK );
           $sth->finish();
         }# end if()
@@ -739,7 +761,7 @@ sub add_trigger
 sub dbi_commit
 {
   my $s = shift;
-  $s->_dbh->commit;
+  $s->db_Main->commit;
 }# end dbi_commit()
 
 
@@ -756,7 +778,7 @@ sub remove_from_object_index
 sub dbi_rollback
 {
   my $s = shift;
-  $s->_dbh->rollback;
+  $s->db_Main->rollback;
 }# end dbi_rollback()
 
 
@@ -793,7 +815,7 @@ sub _flesh_out
   my $s = shift;
   
   my @missing_fields = grep { ! exists($s->{$_}) } $s->_columns_all;
-  my $sth = $s->_dbh->prepare(<<"");
+  my $sth = $s->db_Main->prepare(<<"");
     SELECT @{[ join ', ', @missing_fields ]}
     FROM @{[ $s->table ]}
     WHERE @{[ $s->primary_column ]} = ?
@@ -853,7 +875,7 @@ sub DESTROY
     cluck ref($s) . " #$s->{__id} DESTROY'd without saving changes to $changed";
   }# end if()
   
-  $s->dbi_commit unless $s->_dbh->{AutoCommit};
+  $s->dbi_commit unless $s->db_Main->{AutoCommit};
   delete($s->{$_}) foreach keys(%$s);
 }# end DESTROY()
 

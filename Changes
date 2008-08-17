@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.008   2008-08-17
+  - Added logic to ping() the DBI handle a maximum of once every 5 seconds.
+    This should fix the bug that causes the occasional "white screen of death"
+    after a web application has been idle for a long period.
+
 0.007   2008-08-01
   - discard_changes() now correctly discards changes.
   - Updated POD to mention DBIx::Class and DBIx::Class::CDBICompat.
