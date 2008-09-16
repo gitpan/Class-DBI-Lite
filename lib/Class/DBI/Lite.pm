@@ -1,7 +1,7 @@
 
 package Class::DBI::Lite;
 
-our $VERSION = '0.008';
+our $VERSION = '0.009';
 
 use strict;
 use warnings 'all';
@@ -186,6 +186,17 @@ sub _columns_essential
 
 
 #==============================================================================
+sub find_column
+{
+  my ($class, $name) = @_;
+  
+  my ($col) = grep { $_ eq $name } $class->columns()
+    or return;
+  return $col;
+}# end find_column()
+
+
+#==============================================================================
 sub set_up_table
 {
   my $class = shift;
@@ -350,7 +361,7 @@ sub create
   my $data = ref($_[0]) ? $_[0] : { @_ };
   
   my $PK = $s->_columns_primary;
-  my %create_fields = map { $_ => $data->{$_} } grep { $_ ne $PK } $s->_columns_all;
+  my %create_fields = map { $_ => $data->{$_} } grep { exists($data->{$_}) && $_ ne $PK } $s->_columns_all;
   
   my $pre_obj = bless {
     __id => undef,
@@ -360,7 +371,12 @@ sub create
   
   local $s->db_Main->{AutoCommit} = 0;
   my $obj = eval {
+    # Cal the "before" trigger:
     $pre_obj->_call_triggers( before_create => \%create_fields );
+    
+    # Changes may have happened to the original creation data (from the trigger(s)) - re-evaluate now:
+    %create_fields = map { $_ => $pre_obj->{$_} } grep { exists($pre_obj->{$_}) && defined($pre_obj->{$_}) && $_ ne $PK } $pre_obj->_columns_all;
+    $data = { %$pre_obj  };
     
     my @fields  = map { $_ } sort grep { exists($data->{$_}) } keys(%create_fields);
     my @vals    = map { $data->{$_} } sort grep { exists($data->{$_}) } keys(%create_fields);

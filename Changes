@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.009   2008-09-16
+  - Added find_column().
+
 0.008   2008-08-17
   - Added logic to ping() the DBI handle a maximum of once every 5 seconds.
     This should fix the bug that causes the occasional "white screen of death"

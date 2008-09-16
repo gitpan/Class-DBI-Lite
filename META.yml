@@ -1,11 +1,11 @@
 --- #YAML:1.0
 name:                Class-DBI-Lite
-version:             0.008
+version:             0.009
 abstract:            Lightweight ORM for Perl
 license:             ~
 author:              
     - John Drago <jdrago_999@yahoo.com>
-generated_by:        ExtUtils::MakeMaker version 6.44
+generated_by:        ExtUtils::MakeMaker version 6.42
 distribution_type:   module
 requires:     
     Class::Data::Inheritable:      0

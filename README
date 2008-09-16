@@ -10,10 +10,10 @@ EXPERIMENTAL STATUS
 
 SYNOPSIS
       package My::Model;
-  
-      use base 'Class::DBI::Lite';
-  
-      __PACKAGE__->connection(
+      
+  use base 'Class::DBI::Lite';
+      
+  __PACKAGE__->connection(
         $Config->settings->dsn,
         $Config->settings->username,
         $Config->settings->password,
@@ -23,10 +23,10 @@ SYNOPSIS
 
       # Change the connection:
       My::Model->connection( @dsn );
-  
-      my $users = My::User->retrieve_all;
-  
-      My::Model->connection( @other_dsn );
+      
+  my $users = My::User->retrieve_all;
+      
+  My::Model->connection( @other_dsn );
       my $other_users = My::User->retrieve_all;
 
 DESCRIPTION
@@ -42,10 +42,13 @@ SEE ALSO
     layer - DBIx::Class::CDBICompat.
 
 TODO
-    * Documentation
-    * Near-100% code coverage
-    * Thorough code profiling
-    * Examples
+    *   Documentation
+
+    *   Near-100% code coverage
+
+    *   Thorough code profiling
+
+    *   Examples
 
 AUTHOR
     John Drago <jdrago_999@yahoo.com>.
