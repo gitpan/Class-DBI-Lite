@@ -1,61 +1,92 @@
 NAME
     Class::DBI::Lite - Lightweight ORM for Perl
 
-EXPERIMENTAL STATUS
-    **NOTE**: This module is still under development. It is likely to change
-    in dramatic ways without any warning.
-
-    As is, this module should not (yet) be used in a production environment
-    until after v1.000.
-
 SYNOPSIS
+    Create some database tables:
+
+      create table artists (
+        artist_id integer primary key autoincrement,
+        artist_name varchar(100) not null
+      );
+      
+  create table cds (
+        cd_id integer primary key autoincrement,
+        artist_id integer not null,
+        cd_name varchar(100) not null
+      );
+
       package My::Model;
       
   use base 'Class::DBI::Lite';
       
-  __PACKAGE__->connection(
-        $Config->settings->dsn,
-        $Config->settings->username,
-        $Config->settings->password,
+  __PACKAGE__->connection( 'DBI:mysql:dbname:localhost', 'user', 'pass' );
+      
+  1;# return true:
+
+      package My::Artist;
+      
+  use base 'My::Model';
+      
+  __PACKAGE__->set_up_table('artists');
+      
+  __PACKAGE__->has_many(
+        cds =>
+          'My::CD' =>
+            'artist_id'
       );
-
-    Then, elsewhere...
-
-      # Change the connection:
-      My::Model->connection( @dsn );
       
-  my $users = My::User->retrieve_all;
+  1;# return true:
+
+      package My::CD;
       
-  My::Model->connection( @other_dsn );
-      my $other_users = My::User->retrieve_all;
+  use base 'My::Model';
+      
+  __PACKAGE__->set_up_table('cds');
+      
+  __PACKAGE__->has_a(
+        artist =>
+          'My::Artist' =>
+            'artist_id'
+      );
+      
+  1;# return true:
+
+    Then, in your script someplace:
+
+      use My::Artist;
+      
+  my $artist = My::Artist->retrieve( 123 );
+      
+  foreach my $cd ( $artist->cds )
+      {
+        ...
+      }# end foreach()
+      
+  my $cd = $artist->add_to_cds( cd_name => "Attak" );
+      
+  print $cd->cd_name;
+      $cd->cd_name("New Name");
+      $cd->update();
+      
+  # Delete the artist and all of its CDs:
+      $artist->delete;
 
 DESCRIPTION
-    This module is intended to serve as a drop-in replacement for the
-    venerable Class::DBI when many features of Class::DBI are simply not
-    needed, or when Ima::DBI's quirks are not wanted.
+    Sometimes Class::DBI is too crufty, and DBIx::Class is too much.
 
-SEE ALSO
-    The venerable Class::DBI.
-
-    If you are looking for a modern, robust Perl ORM with a larger support
-    community, check out DBIx::Class. It also has a Class::DBI combatibility
-    layer - DBIx::Class::CDBICompat.
+    Enter Class::DBI::Lite.
 
 TODO
-    *   Documentation
-
-    *   Near-100% code coverage
-
-    *   Thorough code profiling
+    *   Complete tests
 
     *   Examples
 
+    *   Documentation
+
 AUTHOR
-    John Drago <jdrago_999@yahoo.com>.
+    Copyright John Drago <jdrago_999@yahoo.com>. All rights reserved.
 
-LICENSE AND COPYRIGHT
-    Copyright 2008 John Drago <jdrago_999@yahoo.com>. All rights reserved.
-
-    This software is Free software and may be used and distributed under the
-    same terms as perl itself.
+LICENSE
+    This software is Free software and may be used and redistributed under
+    the same terms as perl itself.
 

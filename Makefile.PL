@@ -1,4 +1,4 @@
-use 5.008008;
+use 5.008005;
 use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
@@ -10,9 +10,8 @@ WriteMakefile(
       DBIx::ContextualFetch     => 0,
       DBI                       => 0,
       DBD::SQLite               => 0,
-      Class::Data::Inheritable  => 0,
+      Ima::DBI                  => 0,
       DBIx::ContextualFetch     => 0,
-      Test::More                => 0,
       SQL::Abstract             => 0,
       SQL::Abstract::Limit      => 0,
     },

@@ -1,188 +1,79 @@
 
 package Class::DBI::Lite;
 
-our $VERSION = '0.009';
-
 use strict;
 use warnings 'all';
-use base qw( Class::Data::Inheritable );
-use DBI;
-use Carp qw( confess cluck );
-use Class::DBI::Lite::Iterator;
+use base 'Ima::DBI';
+use Carp qw( cluck confess );
 use SQL::Abstract;
 use SQL::Abstract::Limit;
-
+use Class::DBI::Lite::Iterator;
 use overload 
-  '""' => sub { eval { $_[0]->id } },
-  bool => sub { eval { $_[0]->id } },
-  fallback => 1;
+  '""'      => sub { eval { $_[0]->id } },
+  bool      => sub { eval { $_[0]->id } },
+  fallback  => 1;
 
-#==============================================================================
-BEGIN
-{
-  use vars qw( %Live_Objects %DBI_OPTIONS $Weaken_Is_Available $LastPingTime );
-  
-	$Weaken_Is_Available = 1;
-	eval {
-		require Scalar::Util;
-		import Scalar::Util qw(weaken);
-	};
-	$Weaken_Is_Available = 0 if $@;
-	
-  __PACKAGE__->mk_classdata('_table');
-  __PACKAGE__->mk_classdata('_handles' => { });
-  __PACKAGE__->mk_classdata('_dbh');
-  __PACKAGE__->mk_classdata('_columns' => { });
-  __PACKAGE__->mk_classdata('_dsn');
-  __PACKAGE__->mk_classdata('_schema');
-  __PACKAGE__->mk_classdata('_driver');
-  __PACKAGE__->mk_classdata('_has_a_rels' => { });
-  __PACKAGE__->mk_classdata('_has_many_rels' => { });
-  __PACKAGE__->mk_classdata('_triggers' => { });
-  
-  %DBI_OPTIONS = (
-    FetchHashKeyName    => 'NAME_lc',
-    ShowErrorStatement  => 1,
-    ChopBlanks          => 1,
-    AutoCommit          => 1,
-    RaiseError          => 1,
-    RootClass           => 'DBIx::ContextualFetch',
-  );
-}# end BEGIN
+our $VERSION = '0.010_01';
+our $state;
+
+our %DBI_OPTIONS = (
+  FetchHashKeyName    => 'NAME_lc',
+  ShowErrorStatement  => 1,
+  ChopBlanks          => 1,
+  AutoCommit          => 1,
+  RaiseError          => 1,
+  RootClass           => 'DBIx::ContextualFetch',
+);
+
+BEGIN {
+  use vars qw( $Weaken_Is_Available %Live_Objects );
+
+  $Weaken_Is_Available = 1;
+  eval {
+	  require Scalar::Util;
+	  import Scalar::Util qw(weaken);
+  };
+  $Weaken_Is_Available = 0 if $@;
+}# end BEGIN:
 
 
 #==============================================================================
-my @DSN;
-sub connection
-{
-  my ($class, @dsn) = @_;
-  
-  confess "Usage: $class\->connection( \@dsn )"
-    unless @dsn;
-  @DSN = @dsn;
-  my $key = join ':', @dsn[0...2];
-  $class->_dsn( $dsn[0] );
-  my (undef, undef, $schema) = split /:/, $class->_dsn;
-  $class->_schema( $schema );
-  $LastPingTime = time();
-  if( my $h = $class->_handles->{$key} )
-  {
-    $class->_dbh( $h->{dbh} );
-  }
-  else
-  {
-    my $new = DBI->connect( @dsn, \%DBI_OPTIONS );
-    $class->_handles->{$key} = {
-      dbh => $new,
-    };
-    $class->_dbh( $class->_handles->{$key}->{dbh} );
-  }# end if()
-  undef(%Live_Objects);
-}# end connection()
+# Abstract methods:
+sub set_up_table;
+sub get_last_insert_id;
 
 
 #==============================================================================
-sub db_Main
+sub _init_state
 {
   my $class = shift;
   
-  if( time() < $LastPingTime + 5 )
-  {
-    # It's been less than 5 seconds:
-    return $class->_dbh;
-  }
-  else
-  {
-    # Try pinging:
-    $LastPingTime = time();
-    if( $class->_dbh->ping )
-    {
-      return $class->_dbh;
-    }
-    else
-    {
-      $class->connection( @DSN );
-      return $class->_dbh;
-    }# end if()
-  }# end if()
-}# end db_Main()
-
-
-#==============================================================================
-sub columns
-{
-  my $s = shift;
+  no strict 'refs';
+  no warnings 'once';
+  ${"$class\::state"} ||= {
+    table         => undef, # Class-based
+    columns       => {      # Class-based
+      All       => [ ],
+      Primary   => [ ],
+      Essential => [ ],
+    },
+    triggers      => {      # Class-based
+      before_create => [ ],
+      after_create  => [ ],
+      before_update => [ ],
+      after_update  => [ ],
+      before_delete => [ ],
+      after_delete  => [ ],
+    },
+    has_a_rels    => { },   # Class-based
+    has_many_rels => { },   # Class-based
+  };
+  ${__PACKAGE__ . "::state"} ||= {
+    dsn           => [ ],   # Global
+    schema        => undef, # Global
+  };
   
-  if( @_ )
-  {
-    my $group = "_columns_" . lc(shift);
-    if( @_ )
-    {
-      $s->$group( @_ );
-    }
-    else
-    {
-      $s->$group;
-    }# end if()
-  }
-  else
-  {
-    $s->_columns_all;
-  }# end if()
-}# end columns()
-
-
-#==============================================================================
-sub _columns_all
-{
-  my $s = shift;
-  
-  if( @_ )
-  {
-    $s->_columns->{$s->_table}->{all} = [ @_ ];
-  }
-  else
-  {
-    @{ $s->_columns->{$s->_table}->{all} };
-  }# end if()
-}# end _columns_all()
-
-
-#==============================================================================
-sub _columns_primary
-{
-  my $s = shift;
-  
-  if( @_ )
-  {
-    $s->_columns->{$s->_table}->{primary} = [ @_ ];
-  }
-  else
-  {
-    $s->_columns->{$s->_table}->{primary}->[0];
-  }# end if()
-}# end _columns_primary()
-
-
-#==============================================================================
-sub _columns_essential
-{
-  my $s = shift;
-  
-  if( my @cols = @_ )
-  {
-    # Make sure to include the PK:
-    my $PK = $s->_columns_primary;
-    unshift(@cols, $PK) unless grep { $_ eq $PK } @cols;
-    
-    $s->_columns->{$s->_table}->{essential} = \@cols;
-  }
-  else
-  {
-    # Try for essential, but default to primary:
-    @{ $s->_columns->{$s->_table}->{essential} };
-  }# end if()
-}# end _columns_essential()
+}# end _init_state()
 
 
 #==============================================================================
@@ -190,61 +81,18 @@ sub find_column
 {
   my ($class, $name) = @_;
   
-  my ($col) = grep { $_ eq $name } $class->columns()
+  my ($col) = grep { $_ eq $name } $class->columns('All')
     or return;
   return $col;
 }# end find_column()
 
 
 #==============================================================================
-sub set_up_table
+sub primary_column
 {
-  my $class = shift;
-  $class->_table( shift );
-  
-  # Now load our driver:
-  my (undef, $driver) = split /:/, $class->_dsn;
-  my $driver_class = "Class::DBI::Lite::Driver::$driver";
-  my $driver_file = "Class/DBI/Lite/Driver/$driver.pm";
-  eval {
-    no strict 'refs';
-    require $driver_file unless @{"$driver_class\::ISA"};
-    1;
-  } or confess "Cannot load driver class '$driver_class': $@";
-  $class->_columns->{$class->_table}->{essential} = [ ];
-  
-  # Have the driver take care of any additional setup:
-  $class->_driver(
-    $driver_class->new(
-      root => $class,
-    )
-  )->set_up_table( $class->_table );
-  $class->_columns_essential( $class->_columns_primary )
-    unless $class->_columns_essential;
-}# end set_up_table()
-
-
-#==============================================================================
-sub table
-{
-  my $class = shift;
-  
-  @_ ? $class->set_up_table( @_ ) : $class->_table;
-}# end table()
-
-
-#==============================================================================
-sub triggers
-{
-  my ($s, $event) = @_;
-  
-  $s->_triggers->{ $s->_table } ||= { };
-  my $triggers = $s->_triggers->{ $s->_table };
-  return $triggers unless $event;
-  
-  $triggers->{ $event } ||= [ ];
-  return @{$triggers->{ $event }};
-}# end triggers()
+  my $s = shift;
+  $s->_state->{columns}->{Primary}->[0];
+}# end primary_column()
 
 
 #==============================================================================
@@ -255,7 +103,7 @@ sub construct
   my $class = ref($s) ? ref($s) : $s;
   
   my $PK = $class->primary_column;
-  my $key = join ':', $class, $data->{ $PK };
+  my $key = join ':', grep { defined($_) } ( $class, $data->{ $PK } );
   return $Live_Objects{$key} if $Live_Objects{$key};
   
   my $obj = bless {
@@ -263,8 +111,10 @@ sub construct
     __id => $data->{ $PK },
     __Changed => { },
   }, $class;
-  weaken( $Live_Objects{$key} = $obj )
-    if $Weaken_Is_Available;
+#warn "ADDED $key: " . ref($obj);
+  $Live_Objects{$key} = $obj;
+#  weaken( $Live_Objects{$key} = $obj )
+#    if $Weaken_Is_Available;
   return $obj;
 }# end construct()
 
@@ -279,15 +129,82 @@ sub deconstruct
 
 
 #==============================================================================
-sub retrieve
+sub schema { $_[0]->root_state->{schema} }
+sub dsn    { $_[0]->root_state->{dsn} }
+sub table  { $_[0]->_state->{table} }
+sub triggers { @{ $_[0]->_state->{triggers}->{ $_[1] } } }
+sub _state
 {
-  my ($s, $id) = @_;
-  
-  my ($obj) = $s->retrieve_from_sql(<<"", $id);
-    @{[ $s->_columns_primary ]} = ?
+  my $class = ref($_[0]) || $_[0];
+  no strict 'refs';
+  ${"$class\::state"};
+}# end _state()
 
-  return $obj;
-}# end retrieve()
+
+#==============================================================================
+sub connection
+{
+  my ($class, @DSN) = @_;
+  
+  $class->_init_state;
+  ($class->root_state->{schema}) = $DSN[0] =~ m/^DBI\:.*?\:([^:]+)/;
+  $class->root_state->{dsn} = \@DSN;
+  
+  undef(%Live_Objects);
+  local $^W = 0;
+  $class->set_db('Main' => @DSN);
+}# end connection()
+
+
+#==============================================================================
+sub root
+{
+  __PACKAGE__;
+}# end root()
+
+
+#==============================================================================
+sub root_state
+{
+  my $s = shift;
+  
+  no strict 'refs';
+  my $root = $s->root;
+
+  ${"$root\::state"};
+}# end root_state()
+
+
+#==============================================================================
+sub id
+{
+  $_[0]->{ $_[0]->primary_column };
+}# end id()
+
+
+#==============================================================================
+sub columns
+{
+  my ($s) = shift;
+  
+  if( my $type = shift(@_) )
+  {
+    confess "Unknown column group '$type'" unless $type =~ m/^(All|Essential|Primary)$/;
+    if( my @cols = @_ )
+    {
+      $s->_state->{columns}->{$type} = \@cols;
+    }
+    else
+    {
+      return unless $s->_state->{columns}->{$type};
+      return @{ $s->_state->{columns}->{$type} };
+    }# end if()
+  }
+  else
+  {
+    return @{ $s->_state->{columns}->{All} };
+  }# end if()
+}# end columns()
 
 
 #==============================================================================
@@ -300,58 +217,17 @@ sub retrieve_all
 
 
 #==============================================================================
-sub id
+sub retrieve
 {
-  my $s = shift;
+  my ($s, $id) = @_;
   
-  $s->{__id};
-}# end id()
+  my ($obj) = $s->retrieve_from_sql(<<"", $id);
+    @{[ $s->primary_column ]} = ?
 
-
-#==============================================================================
-sub primary_column
-{
-  my $class = shift;
-  $class->_columns_primary;
-}# end primary_column()
-
-
-#==============================================================================
-sub retrieve_from_sql
-{
-  my ($s, $sql, @bind) = @_;
-  
-  $sql = "SELECT @{[ join ', ', $s->_columns_essential ]} FROM @{[ $s->_table ]}" . ( $sql ? " WHERE $sql " : "" );
-  my $sth = $s->db_Main->prepare_cached( $sql );
-  $sth->execute( @bind );
-  
-  return $s->sth_to_objects( $sth );
-}# end retrieve_from_sql()
-
-
-#==============================================================================
-sub sth_to_objects
-{
-  my ($s, $sth) = @_;
-  
-  my $class = ref($s) ? ref($s) : $s;
-  if( wantarray )
-  {
-    my @vals = map { $class->construct( $_ ) } $sth->fetchall_hash;
-    $sth->finish();
-    return @vals;
-  }
-  else
-  {
-    my $iter = Class::DBI::Lite::Iterator->new(
-      [
-        map { $class->construct( $_ ) } $sth->fetchall_hash
-      ]
-    );
-    $sth->finish();
-    return $iter;
-  }# end if()
-}# end sth_to_objects()
+#use Data::Dumper;
+#warn "retrieve($s,$id): " . Dumper( $obj );
+  return $obj;
+}# end retrieve()
 
 
 #==============================================================================
@@ -360,8 +236,10 @@ sub create
   my $s = shift;
   my $data = ref($_[0]) ? $_[0] : { @_ };
   
-  my $PK = $s->_columns_primary;
-  my %create_fields = map { $_ => $data->{$_} } grep { exists($data->{$_}) && $_ ne $PK } $s->_columns_all;
+  my $PK = $s->primary_column;
+  my %create_fields = map { $_ => $data->{$_} }
+                        grep { exists($data->{$_}) && $_ ne $PK }
+                          $s->columns('All');
   
   my $pre_obj = bless {
     __id => undef,
@@ -375,7 +253,9 @@ sub create
     $pre_obj->_call_triggers( before_create => \%create_fields );
     
     # Changes may have happened to the original creation data (from the trigger(s)) - re-evaluate now:
-    %create_fields = map { $_ => $pre_obj->{$_} } grep { exists($pre_obj->{$_}) && defined($pre_obj->{$_}) && $_ ne $PK } $pre_obj->_columns_all;
+    %create_fields =  map { $_ => $pre_obj->{$_} }
+                        grep { exists($pre_obj->{$_}) && defined($pre_obj->{$_}) && $_ ne $PK }
+                          $pre_obj->columns('All');
     $data = { %$pre_obj  };
     
     my @fields  = map { $_ } sort grep { exists($data->{$_}) } keys(%create_fields);
@@ -391,7 +271,8 @@ sub create
 
     my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( map { $pre_obj->$_ } @fields );
-    my $id = $s->_driver->get_last_insert_id;
+    my $id = $s->get_last_insert_id
+      or confess "ERROR - CANNOT get last insert id";
     $sth->finish();
     
     my $obj = $s->retrieve( $id );
@@ -449,7 +330,7 @@ sub update
     my $sql = <<"";
       UPDATE @{[ $s->table ]} SET
         @{[ join ', ', @fields ]}
-      WHERE @{[ $s->_columns_primary ]} = ?
+      WHERE @{[ $s->primary_column ]} = ?
 
     my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( @vals, $s->id );
@@ -501,14 +382,14 @@ sub delete
     
     my $sql = <<"";
       DELETE FROM @{[ $s->table ]}
-      WHERE @{[ $s->_columns_primary ]} = ?
+      WHERE @{[ $s->primary_column ]} = ?
 
     my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( $s->id );
     $sth->finish();
     
     my $deleted = bless { $s->primary_column => $s->id }, ref($s);
-    my $key = ref($s) . ':' . $s->id;
+    my $key = join ':', grep { defined($_) } ( ref($s), $s->id );
     $s->_call_triggers( after_delete => $deleted );
     delete($Live_Objects{$key});
     undef(%$deleted);
@@ -540,6 +421,44 @@ sub delete
 
 
 #==============================================================================
+sub retrieve_from_sql
+{
+  my ($s, $sql, @bind) = @_;
+  
+  $sql = "SELECT @{[ join ', ', $s->columns('Essential') ]} FROM @{[ $s->table ]}" . ( $sql ? " WHERE $sql " : "" );
+  my $sth = $s->db_Main->prepare_cached( $sql );
+  $sth->execute( @bind );
+  
+  return $s->sth_to_objects( $sth, $sql );
+}# end retrieve_from_sql()
+
+
+#==============================================================================
+sub sth_to_objects
+{
+  my ($s, $sth, $sql) = @_;
+  
+  my $class = ref($s) ? ref($s) : $s;
+  if( wantarray )
+  {
+    my @vals = map { $class->construct( $_ ) } $sth->fetchall_hash;
+    $sth->finish();
+    return @vals;
+  }
+  else
+  {
+    my $iter = Class::DBI::Lite::Iterator->new(
+      [
+        map { $class->construct( $_ ) } $sth->fetchall_hash
+      ]
+    );
+    $sth->finish();
+    return $iter;
+  }# end if()
+}# end sth_to_objects()
+
+
+#==============================================================================
 sub search
 {
   my ($s, %args) = @_;
@@ -559,7 +478,7 @@ sub count_search
 {
   my ($s, %args) = @_;
   
-  my $sql = "SELECT COUNT(*) FROM @{[ $s->_table ]} WHERE ";
+  my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} WHERE ";
 
   my @sql_parts = map { "$_ = ?" } sort keys(%args);
   my @sql_vals  = map { $args{$_} } sort keys(%args);
@@ -594,7 +513,7 @@ sub count_search_like
 {
   my ($s, %args) = @_;
   
-  my $sql = "SELECT COUNT(*) FROM @{[ $s->_table ]} WHERE ";
+  my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} WHERE ";
 
   my @sql_parts = map { "$_ LIKE ?" } sort keys(%args);
   my @sql_vals  = map { $args{$_} } sort keys(%args);
@@ -643,7 +562,7 @@ sub count_search_where
   my($phrase, @bind) = $abstract->where($where, $order, $limit, $offset);
   $phrase =~ s/^\s*WHERE\s*//i;
   
-  my $sql = "SELECT COUNT(*) FROM @{[ $s->_table ]} WHERE $phrase";
+  my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} WHERE $phrase";
   my $sth = $s->db_Main->prepare_cached($sql);
   $sth->execute( @bind );
   my ($count) = $sth->fetchrow;
@@ -654,123 +573,83 @@ sub count_search_where
 
 
 #==============================================================================
-#  ->has_many(
-#    things => 'My::Thing' => 'thing_id' 
-#  )
-sub has_many
-{
-  my $class = shift;
-  $class->_add_relationship( 'has_many', @_ );
-}# end has_many()
-
-
-#==============================================================================
-#  ->has_a(
-#    thing => 'My::Thing' => 'thing_id'
-#  )
 sub has_a
 {
-  my $class = shift;
-  $class->_add_relationship( 'has_a', @_ );
+  my ($class, $method, $otherClass, $fk) = @_;
+  
+  $class->_state->{has_a_rels}->{$method} = {
+    class => $otherClass,
+    fk    => $fk
+  };
+  
+  no strict 'refs';
+  *{"$class\::$method"} = sub {
+    my $s = shift;
+    
+    $otherClass->retrieve( $s->$fk );
+  };
 }# end has_a()
 
 
 #==============================================================================
-sub _add_relationship
+sub has_many
 {
-  my ($class, $type, $method, $otherclass, $FK) = @_;
+  my ($class, $method, $otherClass, $fk) = @_;
   
-  # Make sure the other class is loaded/loadable:
-  {
-    no strict 'refs';
-    (my $otherpkg = "$otherclass.pm") =~ s/::/\//g;
-    eval { require $otherpkg unless @{"$otherclass\::ISA"}; 1; }
-      or confess "Cannot load package '$otherclass': $@";
-  }
-  
-  $FK ||= $otherclass->_columns_primary;
+  $class->_state->{has_many_rels}->{$method} = {
+    class => $otherClass,
+    fk    => $fk,
+  };
   
   no strict 'refs';
-  my $PK = $class->primary_column;
+  *{"$class\::$method"} = sub {
+    my $s = shift;
+    $otherClass->search( $fk => $s->$fk );
+  };
+  
   *{"$class\::add_to_$method"} = sub {
     my $s = shift;
-    my %data = ref($_[0]) ? %{ $_[0] } : @_;
-    $otherclass->create(
-      %data,
-      $PK => $s->id,
+    $otherClass->create(
+      %{ @_ },
+      $fk => $s->id,
     );
   };
-  if( $type eq 'has_many' )
-  {
-    *{"$class\::$method"} = sub {
-      my $s = shift;
-      $otherclass->search( $FK => $s->id );
-    };
-    # Also add a trigger for after_delete:
-    $class->add_trigger( after_delete => sub {
-      my $s = shift;
-      # XXX: Maybe change this to simply delete (via SQL) from $otherclass->table
-      # where $FK = $s->id:
-      local $s->db_Main->{AutoCommit} = 0;
-      eval {
-        my @triggers = grep { $_ } (
-          $otherclass->triggers('before_delete'),
-          $otherclass->triggers('after_delete'),
-        );
-        if( @triggers )
-        {
-          $_->delete foreach $s->$method;
-        }
-        else
-        {
-          # Get a list of keys to remove from the object index:
-          {
-            my $sth = $s->db_Main->prepare("SELECT @{[ $otherclass->primary_column ]} FROM @{[ $otherclass->_table ]} WHERE $FK = ?");
-            $sth->execute( $s->$FK );
-            my @ids = map { $_->[0] } @{ $sth->fetchall_arrayref };
-            $sth->finish();
-            map {
-              my $key = "$otherclass:$_";
-              if( exists($Live_Objects{$key}) )
-              {
-                $Live_Objects{$key}->deconstruct;
-                delete($Live_Objects{$key});
-              }# end if()
-            } @ids;
-          }
-          
-          # Finally delete them:
-          my $sth = $s->db_Main->prepare("DELETE FROM @{[ $otherclass->_table ]} WHERE $FK = ?");
-          $sth->execute( $s->$FK );
-          $sth->finish();
-        }# end if()
-      };
-
-    });
-  }
-  elsif( $type eq 'has_a' )
-  {
-    *{"$class\::$method"} = sub {
-      my $s = shift;
-      $otherclass->retrieve( $s->$FK );
-    };
-  }# end if()
   
-  return 1;
-}# end _add_relationship()
+  $class->add_trigger( after_delete => sub {
+    my $s = shift;
+    $_->delete foreach $s->$method;
+  });
+}# end has_many()
 
 
 #==============================================================================
 sub add_trigger
 {
-  my ($class, $event, $handler) = @_;
+  my ($s, $event, $handler) = @_;
   
-  $class->_triggers->{ $class->_table } ||= { };
-  $class->_triggers->{ $class->_table }->{ $event } ||= [ ];
-  push @{
-    $class->triggers->{$event}
-  }, $handler;
+  my $handlers = $s->_state->{triggers}->{$event};
+  return if grep { $_ eq $handler } @$handlers;
+  
+  push @$handlers, $handler;
 }# end add_trigger()
+
+
+#==============================================================================
+sub _call_triggers
+{
+  my ($s, $event) = @_;
+  
+  $s->_state->{triggers}->{ $event } ||= [ ];
+  return unless my @handlers = @{ $s->_state->{triggers}->{ $event } };
+  shift;shift;
+  foreach my $handler ( @handlers )
+  {
+    eval {
+      $handler->( $s, @_ );
+      1;
+    } or confess $@;
+  }# end foreach()
+}# end _call_triggers()
 
 
 #==============================================================================
@@ -809,28 +688,11 @@ sub discard_changes
 
 
 #==============================================================================
-sub _call_triggers
-{
-  my ($s, $event) = @_;
-  
-  return unless my @handlers = $s->triggers( $event );
-  shift;shift;
-  foreach my $handler ( @handlers )
-  {
-    eval {
-      $handler->( $s, @_ );
-      1;
-    } or confess $@;
-  }# end foreach()
-}# end _call_triggers()
-
-
-#==============================================================================
 sub _flesh_out
 {
   my $s = shift;
   
-  my @missing_fields = grep { ! exists($s->{$_}) } $s->_columns_all;
+  my @missing_fields = grep { ! exists($s->{$_}) } $s->columns('All');
   my $sth = $s->db_Main->prepare(<<"");
     SELECT @{[ join ', ', @missing_fields ]}
     FROM @{[ $s->table ]}
@@ -852,7 +714,7 @@ sub AUTOLOAD
   our $AUTOLOAD;
   my ($name) = $AUTOLOAD =~ m/([^:]+)$/;
 
-  if( my ($col) = grep { $_ eq $name } $s->_columns_all )
+  if( my ($col) = grep { $_ eq $name } $s->columns('All') )
   {
     exists($s->{$col}) or $s->_flesh_out;
     if( @_ )
@@ -915,72 +777,103 @@ __END__
 
 Class::DBI::Lite - Lightweight ORM for Perl
 
-=head1 EXPERIMENTAL STATUS
-
-B<**NOTE**:> This module is still under development.  It is likely to change
-in dramatic ways without any warning.
-
-As is, this module should not (yet) be used in a production environment until after v1.000.
-
 =head1 SYNOPSIS
+
+Create some database tables:
+
+  create table artists (
+    artist_id integer primary key autoincrement,
+    artist_name varchar(100) not null
+  );
+  
+  create table cds (
+    cd_id integer primary key autoincrement,
+    artist_id integer not null,
+    cd_name varchar(100) not null
+  );
 
   package My::Model;
   
   use base 'Class::DBI::Lite';
   
-  __PACKAGE__->connection(
-    $Config->settings->dsn,
-    $Config->settings->username,
-    $Config->settings->password,
+  __PACKAGE__->connection( 'DBI:mysql:dbname:localhost', 'user', 'pass' );
+  
+  1;# return true:
+
+  package My::Artist;
+  
+  use base 'My::Model';
+  
+  __PACKAGE__->set_up_table('artists');
+  
+  __PACKAGE__->has_many(
+    cds =>
+      'My::CD' =>
+        'artist_id'
   );
-
-Then, elsewhere...
-
-  # Change the connection:
-  My::Model->connection( @dsn );
   
-  my $users = My::User->retrieve_all;
+  1;# return true:
+
+  package My::CD;
   
-  My::Model->connection( @other_dsn );
-  my $other_users = My::User->retrieve_all;
+  use base 'My::Model';
+  
+  __PACKAGE__->set_up_table('cds');
+  
+  __PACKAGE__->has_a(
+    artist =>
+      'My::Artist' =>
+        'artist_id'
+  );
+  
+  1;# return true:
+
+Then, in your script someplace:
+
+  use My::Artist;
+  
+  my $artist = My::Artist->retrieve( 123 );
+  
+  foreach my $cd ( $artist->cds )
+  {
+    ...
+  }# end foreach()
+  
+  my $cd = $artist->add_to_cds( cd_name => "Attak" );
+  
+  print $cd->cd_name;
+  $cd->cd_name("New Name");
+  $cd->update();
+  
+  # Delete the artist and all of its CDs:
+  $artist->delete;
 
 =head1 DESCRIPTION
 
-This module is intended to serve as a drop-in replacement for the venerable Class::DBI
-when many features of Class::DBI are simply not needed, or when Ima::DBI's quirks
-are not wanted.
+Sometimes Class::DBI is too crufty, and DBIx::Class is too much.
 
-=head1 SEE ALSO
-
-The venerable L<Class::DBI>.
-
-If you are looking for a modern, robust Perl ORM with a larger support community,
-check out L<DBIx::Class>.  It also has a Class::DBI combatibility layer - L<DBIx::Class::CDBICompat>.
+Enter Class::DBI::Lite.
 
 =head1 TODO
 
 =over 4
 
-=item * Documentation
-
-=item * Near-100% code coverage
-
-=item * Thorough code profiling
+=item * Complete tests
 
 =item * Examples
+
+=item * Documentation
 
 =back
 
 =head1 AUTHOR
 
-John Drago <jdrago_999@yahoo.com>.
+Copyright John Drago <jdrago_999@yahoo.com>.  All rights reserved.
 
-=head1 LICENSE AND COPYRIGHT
+=head1 LICENSE
 
-Copyright 2008 John Drago <jdrago_999@yahoo.com>.  All rights reserved.
-
-This software is Free software and may be used and distributed under the same 
-terms as perl itself.
+This software is Free software and may be used and redistributed under the
+same terms as perl itself.
 
 =cut
 

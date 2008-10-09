@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.010_01   2008-10-09
+  - Complete rewrite.
+  - Removed dependency on Class::Data::Inheritable.
+
 0.009   2008-09-16
   - Added find_column().
 
