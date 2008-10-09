@@ -12,11 +12,11 @@ sub set_up_table
 {
   my $s = shift;
   
-  $s->_init_state;
+  $s->_init_meta;
   
   # Get our columns:
   my $table = shift;
-  $s->_state->{table} = $table;
+  $s->_meta->{table} = $table;
   my $sth = $s->db_Main->prepare(<<"");
     PRAGMA table_info( '$table' )
 

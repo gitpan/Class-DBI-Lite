@@ -13,8 +13,8 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.010_01';
-our $state;
+our $VERSION = '0.010_03';
+our $meta;
 
 our %DBI_OPTIONS = (
   FetchHashKeyName    => 'NAME_lc',
@@ -44,13 +44,13 @@ sub get_last_insert_id;
 
 
 #==============================================================================
-sub _init_state
+sub _init_meta
 {
   my $class = shift;
   
   no strict 'refs';
   no warnings 'once';
-  ${"$class\::state"} ||= {
+  ${"$class\::meta"} ||= {
     table         => undef, # Class-based
     columns       => {      # Class-based
       All       => [ ],
@@ -68,12 +68,12 @@ sub _init_state
     has_a_rels    => { },   # Class-based
     has_many_rels => { },   # Class-based
   };
-  ${__PACKAGE__ . "::state"} ||= {
+  ${__PACKAGE__ . "::meta"} ||= {
     dsn           => [ ],   # Global
     schema        => undef, # Global
   };
   
-}# end _init_state()
+}# end _init_meta()
 
 
 #==============================================================================
@@ -91,7 +91,7 @@ sub find_column
 sub primary_column
 {
   my $s = shift;
-  $s->_state->{columns}->{Primary}->[0];
+  $s->_meta->{columns}->{Primary}->[0];
 }# end primary_column()
 
 
@@ -129,16 +129,16 @@ sub deconstruct
 
 
 #==============================================================================
-sub schema { $_[0]->root_state->{schema} }
-sub dsn    { $_[0]->root_state->{dsn} }
-sub table  { $_[0]->_state->{table} }
-sub triggers { @{ $_[0]->_state->{triggers}->{ $_[1] } } }
-sub _state
+sub schema { $_[0]->root_meta->{schema} }
+sub dsn    { $_[0]->root_meta->{dsn} }
+sub table  { $_[0]->_meta->{table} }
+sub triggers { @{ $_[0]->_meta->{triggers}->{ $_[1] } } }
+sub _meta
 {
   my $class = ref($_[0]) || $_[0];
   no strict 'refs';
-  ${"$class\::state"};
-}# end _state()
+  ${"$class\::meta"};
+}# end _meta()
 
 
 #==============================================================================
@@ -146,9 +146,9 @@ sub connection
 {
   my ($class, @DSN) = @_;
   
-  $class->_init_state;
-  ($class->root_state->{schema}) = $DSN[0] =~ m/^DBI\:.*?\:([^:]+)/;
-  $class->root_state->{dsn} = \@DSN;
+  $class->_init_meta;
+  ($class->root_meta->{schema}) = $DSN[0] =~ m/^DBI\:.*?\:([^:]+)/;
+  $class->root_meta->{dsn} = \@DSN;
   
   undef(%Live_Objects);
   local $^W = 0;
@@ -164,15 +164,15 @@ sub root
 
 
 #==============================================================================
-sub root_state
+sub root_meta
 {
   my $s = shift;
   
   no strict 'refs';
   my $root = $s->root;
 
-  ${"$root\::state"};
-}# end root_state()
+  ${"$root\::meta"};
+}# end root_meta()
 
 
 #==============================================================================
@@ -192,17 +192,17 @@ sub columns
     confess "Unknown column group '$type'" unless $type =~ m/^(All|Essential|Primary)$/;
     if( my @cols = @_ )
     {
-      $s->_state->{columns}->{$type} = \@cols;
+      $s->_meta->{columns}->{$type} = \@cols;
     }
     else
     {
-      return unless $s->_state->{columns}->{$type};
-      return @{ $s->_state->{columns}->{$type} };
+      return unless $s->_meta->{columns}->{$type};
+      return @{ $s->_meta->{columns}->{$type} };
     }# end if()
   }
   else
   {
-    return @{ $s->_state->{columns}->{All} };
+    return @{ $s->_meta->{columns}->{All} };
   }# end if()
 }# end columns()
 
@@ -577,7 +577,7 @@ sub has_a
 {
   my ($class, $method, $otherClass, $fk) = @_;
   
-  $class->_state->{has_a_rels}->{$method} = {
+  $class->_meta->{has_a_rels}->{$method} = {
     class => $otherClass,
     fk    => $fk
   };
@@ -596,7 +596,7 @@ sub has_many
 {
   my ($class, $method, $otherClass, $fk) = @_;
   
-  $class->_state->{has_many_rels}->{$method} = {
+  $class->_meta->{has_many_rels}->{$method} = {
     class => $otherClass,
     fk    => $fk,
   };
@@ -609,8 +609,9 @@ sub has_many
   
   *{"$class\::add_to_$method"} = sub {
     my $s = shift;
+    my %options = ref($_[0]) ? %{$_[0]} : @_;
     $otherClass->create(
-      %{ @_ },
+      %options,
       $fk => $s->id,
     );
   };
@@ -627,7 +628,7 @@ sub add_trigger
 {
   my ($s, $event, $handler) = @_;
   
-  my $handlers = $s->_state->{triggers}->{$event};
+  my $handlers = $s->_meta->{triggers}->{$event};
   return if grep { $_ eq $handler } @$handlers;
   
   push @$handlers, $handler;
@@ -639,8 +640,8 @@ sub _call_triggers
 {
   my ($s, $event) = @_;
   
-  $s->_state->{triggers}->{ $event } ||= [ ];
-  return unless my @handlers = @{ $s->_state->{triggers}->{ $event } };
+  $s->_meta->{triggers}->{ $event } ||= [ ];
+  return unless my @handlers = @{ $s->_meta->{triggers}->{ $event } };
   shift;shift;
   foreach my $handler ( @handlers )
   {

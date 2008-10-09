@@ -12,8 +12,11 @@ sub set_up_table
 {
   my $s = shift;
   
+  $s->_init_meta;
+  
   # Get our columns:
   my $table = shift;
+  $s->_meta->{table} = $table;
   my $sth = $s->db_Main->prepare(<<"");
     SELECT *
     FROM information_schema.columns
@@ -26,6 +29,7 @@ sub set_up_table
   my $PK;
   while( my $rec = $sth->fetchrow_hashref )
   {
+    $rec->{ lc($_) } = delete($rec->{$_}) foreach keys(%$rec);
     # Is this the primary column?:
     $PK = $rec->{column_name}
       if  $rec->{column_key} &&
@@ -38,6 +42,7 @@ sub set_up_table
     unless @cols;
   
   $s->columns( Primary => $PK );
+  $s->columns( Essential => @cols );
   $s->columns( All => @cols );
   1;
 }# end set_up_table()
