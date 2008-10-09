@@ -13,7 +13,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.010_03';
+our $VERSION = '0.011';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -113,8 +113,8 @@ sub construct
   }, $class;
 #warn "ADDED $key: " . ref($obj);
   $Live_Objects{$key} = $obj;
-#  weaken( $Live_Objects{$key} = $obj )
-#    if $Weaken_Is_Available;
+  weaken( $Live_Objects{$key} = $obj )
+    if $Weaken_Is_Available;
   return $obj;
 }# end construct()
 
