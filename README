@@ -15,13 +15,15 @@ SYNOPSIS
         cd_name varchar(100) not null
       );
 
+
       package My::Model;
       
-  use base 'Class::DBI::Lite';
+  use base 'Class::DBI::Lite::mysql'; # Or ::SQLite, etc
       
   __PACKAGE__->connection( 'DBI:mysql:dbname:localhost', 'user', 'pass' );
       
   1;# return true:
+
 
       package My::Artist;
       
@@ -36,6 +38,7 @@ SYNOPSIS
       );
       
   1;# return true:
+
 
       package My::CD;
       

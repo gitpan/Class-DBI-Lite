@@ -13,7 +13,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.011';
+our $VERSION = '0.012';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -577,6 +577,7 @@ sub has_a
 {
   my ($class, $method, $otherClass, $fk) = @_;
   
+  $class->_load_class( $otherClass );
   $class->_meta->{has_a_rels}->{$method} = {
     class => $otherClass,
     fk    => $fk
@@ -596,6 +597,7 @@ sub has_many
 {
   my ($class, $method, $otherClass, $fk) = @_;
   
+  $class->_load_class( $otherClass );
   $class->_meta->{has_many_rels}->{$method} = {
     class => $otherClass,
     fk    => $fk,
@@ -686,6 +688,16 @@ sub discard_changes
   $s->{__Changed} = { };
   $s = ref($s)->retrieve( $s->id );
 }# end discard_changes()
+
+
+#==============================================================================
+sub _load_class
+{
+  my (undef, $class) = @_;
+  
+  (my $file = "$class.pm") =~ s/::/\//g;
+  require $file unless $INC{$file};
+}# end _load_class()
 
 
 #==============================================================================
@@ -793,13 +805,15 @@ Create some database tables:
     cd_name varchar(100) not null
   );
 
+
   package My::Model;
   
-  use base 'Class::DBI::Lite';
+  use base 'Class::DBI::Lite::mysql'; # Or ::SQLite, etc
   
   __PACKAGE__->connection( 'DBI:mysql:dbname:localhost', 'user', 'pass' );
   
   1;# return true:
+
 
   package My::Artist;
   
@@ -814,6 +828,7 @@ Create some database tables:
   );
   
   1;# return true:
+
 
   package My::CD;
   

@@ -1,8 +1,20 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.012   2008-10-10
+  - Updated some documentation.
+  - has_a and has_many causes the other class to be loaded via require().
+
+0.011   2008-10-09
+  - Stable release of new version.
+  - Fixed a bug under mod_perl which caused unstable behavior when each
+    VirtualHost used a different database handle.  Sometimes a VirtualHost
+    started talking to the wrong database (which is not good, obviously!).
+
 0.010_01   2008-10-09
   - Complete rewrite.
-  - Removed dependency on Class::Data::Inheritable.
+  - Removed dependency on Class::Data::Inheritable.  Switched to simpler
+    class-based "meta" hashrefs.
+  - Improved performance.
 
 0.009   2008-09-16
   - Added find_column().
