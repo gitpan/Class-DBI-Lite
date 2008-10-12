@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.013   2008-10-12
+  - Added Test::Memory::Cycle to dependencies list in Makefile.PL
+
 0.012   2008-10-10
   - Updated some documentation.
   - has_a and has_many causes the other class to be loaded via require().

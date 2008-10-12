@@ -7,6 +7,7 @@ WriteMakefile(
     VERSION_FROM      => 'lib/Class/DBI/Lite.pm', # finds $VERSION
     PREREQ_PM         => {
       Test::More                => 0,
+      Test::Memory::Cycle       => 0,
       DBIx::ContextualFetch     => 0,
       DBI                       => 0,
       DBD::SQLite               => 0,
