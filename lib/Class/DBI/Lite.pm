@@ -13,7 +13,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.013';
+our $VERSION = '0.014';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -41,6 +41,16 @@ BEGIN {
 # Abstract methods:
 sub set_up_table;
 sub get_last_insert_id;
+
+
+#==============================================================================
+sub clear_object_index
+{
+  my $s = shift;
+  
+  my $class = ref($s) || $s;
+  map { delete($Live_Objects{$_}) } grep { m/^$class\:\d+/ } keys(%Live_Objects);
+}# end clear_object_index()
 
 
 #==============================================================================
@@ -135,9 +145,10 @@ sub table  { $_[0]->_meta->{table} }
 sub triggers { @{ $_[0]->_meta->{triggers}->{ $_[1] } } }
 sub _meta
 {
-  my $class = ref($_[0]) || $_[0];
+  my $class = shift;
+  $class = ref($class) || $class;
   no strict 'refs';
-  ${"$class\::meta"};
+  @_ ? ${"$class\::meta"} = shift : ${"$class\::meta"};
 }# end _meta()
 
 
@@ -153,6 +164,13 @@ sub connection
   undef(%Live_Objects);
   local $^W = 0;
   $class->set_db('Main' => @DSN);
+#  $class->set_db('Main' => @DSN, {
+#		RaiseError => 1,
+#		AutoCommit => 0,
+#		PrintError => 0,
+#		Taint      => 1,
+#		RootClass  => "DBIx::ContextualFetch"
+#  });
 }# end connection()
 
 
@@ -426,6 +444,7 @@ sub retrieve_from_sql
   my ($s, $sql, @bind) = @_;
   
   $sql = "SELECT @{[ join ', ', $s->columns('Essential') ]} FROM @{[ $s->table ]}" . ( $sql ? " WHERE $sql " : "" );
+  local $s->db_Main->{AutoCommit} = 1;
   my $sth = $s->db_Main->prepare_cached( $sql );
   $sth->execute( @bind );
   
@@ -696,7 +715,11 @@ sub _load_class
   my (undef, $class) = @_;
   
   (my $file = "$class.pm") =~ s/::/\//g;
-  require $file unless $INC{$file};
+  unless( $INC{$file} )
+  {
+    require $file;
+    $class->import;
+  }# end unless();
 }# end _load_class()
 
 

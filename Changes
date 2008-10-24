@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.014   2008-10-24
+  - Added "after_set_up_table()" event.
+
 0.013   2008-10-12
   - Added Test::Memory::Cycle to dependencies list in Makefile.PL
 

@@ -44,8 +44,13 @@ sub set_up_table
   $s->columns( Primary => $PK );
   $s->columns( Essential => @cols );
   $s->columns( All => @cols );
+  $s->after_set_up_table;
   1;
 }# end set_up_table()
+
+
+#==============================================================================
+sub after_set_up_table { }
 
 
 #==============================================================================
