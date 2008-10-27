@@ -13,7 +13,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.014';
+our $VERSION = '0.015';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -49,7 +49,8 @@ sub clear_object_index
   my $s = shift;
   
   my $class = ref($s) || $s;
-  map { delete($Live_Objects{$_}) } grep { m/^$class\:\d+/ } keys(%Live_Objects);
+  my $key_starter = $s->root_meta->{schema} . ":" . $class;
+  map { delete($Live_Objects{$_}) } grep { m/^$key_starter\:\d+/ } keys(%Live_Objects);
 }# end clear_object_index()
 
 
@@ -113,7 +114,7 @@ sub construct
   my $class = ref($s) ? ref($s) : $s;
   
   my $PK = $class->primary_column;
-  my $key = join ':', grep { defined($_) } ( $class, $data->{ $PK } );
+  my $key = join ':', grep { defined($_) } ( $s->root_meta->{schema}, $class, $data->{ $PK } );
   return $Live_Objects{$key} if $Live_Objects{$key};
   
   my $obj = bless {
@@ -163,14 +164,13 @@ sub connection
   
   undef(%Live_Objects);
   local $^W = 0;
-  $class->set_db('Main' => @DSN);
-#  $class->set_db('Main' => @DSN, {
-#		RaiseError => 1,
-#		AutoCommit => 0,
-#		PrintError => 0,
-#		Taint      => 1,
-#		RootClass  => "DBIx::ContextualFetch"
-#  });
+  $class->set_db('Main' => @DSN, {
+		RaiseError => 1,
+		AutoCommit => 0,
+		PrintError => 0,
+		Taint      => 1,
+		RootClass  => "DBIx::ContextualFetch"
+  });
 }# end connection()
 
 
@@ -242,8 +242,6 @@ sub retrieve
   my ($obj) = $s->retrieve_from_sql(<<"", $id);
     @{[ $s->primary_column ]} = ?
 
-#use Data::Dumper;
-#warn "retrieve($s,$id): " . Dumper( $obj );
   return $obj;
 }# end retrieve()
 
@@ -407,7 +405,7 @@ sub delete
     $sth->finish();
     
     my $deleted = bless { $s->primary_column => $s->id }, ref($s);
-    my $key = join ':', grep { defined($_) } ( ref($s), $s->id );
+    my $key = join ':', grep { defined($_) } ($s->root_meta->{schema}, ref($s), $s->id );
     $s->_call_triggers( after_delete => $deleted );
     delete($Live_Objects{$key});
     undef(%$deleted);
@@ -686,7 +684,7 @@ sub dbi_commit
 sub remove_from_object_index
 {
   my $s = shift;
-  my $obj = delete($Live_Objects{ ref($s) . ':' . $s->id });
+  my $obj = delete($Live_Objects{$s->root_meta->{schema} . ':' . ref($s) . ':' . $s->id });
   undef(%$obj);
 }# end remove_from_object_index()
 

@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.015   2008-10-26
+  - Object cache key now begins with the current database schema.
+
 0.014   2008-10-24
   - Added "after_set_up_table()" event.
 
