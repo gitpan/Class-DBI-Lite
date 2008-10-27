@@ -13,7 +13,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.015';
+our $VERSION = '0.016';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -166,7 +166,7 @@ sub connection
   local $^W = 0;
   $class->set_db('Main' => @DSN, {
 		RaiseError => 1,
-		AutoCommit => 0,
+		AutoCommit => 1,
 		PrintError => 0,
 		Taint      => 1,
 		RootClass  => "DBIx::ContextualFetch"
