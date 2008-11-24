@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.017   2008-11-23
+  - Use of has_a or has_many sometimes failed because _init_meta had not yet
+    been called.
+
 0.016   2008-10-27
   - db_Main database handle is now created with "AutoCommit = 1" to prevent a
     transaction deadlock in other code that uses Class::DBI::Lite::mysql.

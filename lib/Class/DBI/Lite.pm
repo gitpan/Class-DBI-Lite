@@ -13,7 +13,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.016';
+our $VERSION = '0.017';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -61,6 +61,7 @@ sub _init_meta
   
   no strict 'refs';
   no warnings 'once';
+  
   ${"$class\::meta"} ||= {
     table         => undef, # Class-based
     columns       => {      # Class-based
@@ -122,7 +123,6 @@ sub construct
     __id => $data->{ $PK },
     __Changed => { },
   }, $class;
-#warn "ADDED $key: " . ref($obj);
   $Live_Objects{$key} = $obj;
   weaken( $Live_Objects{$key} = $obj )
     if $Weaken_Is_Available;
@@ -442,11 +442,13 @@ sub retrieve_from_sql
   my ($s, $sql, @bind) = @_;
   
   $sql = "SELECT @{[ join ', ', $s->columns('Essential') ]} FROM @{[ $s->table ]}" . ( $sql ? " WHERE $sql " : "" );
-  local $s->db_Main->{AutoCommit} = 1;
-  my $sth = $s->db_Main->prepare_cached( $sql );
-  $sth->execute( @bind );
-  
-  return $s->sth_to_objects( $sth, $sql );
+  SCOPE: {
+    local $s->db_Main->{AutoCommit} = 1;
+    my $sth = $s->db_Main->prepare_cached( $sql );
+    $sth->execute( @bind );
+    
+    return $s->sth_to_objects( $sth, $sql );
+  }
 }# end retrieve_from_sql()
 
 
@@ -501,12 +503,15 @@ sub count_search
   my @sql_vals  = map { $args{$_} } sort keys(%args);
   $sql .= join ' AND ', @sql_parts;
   
-  my $sth = $s->db_Main->prepare_cached( $sql );
-  $sth->execute( @sql_vals );
-  my ($count) = $sth->fetchrow;
-  $sth->finish();
-  
-  return $count;
+  SCOPE: {
+    local $s->db_Main->{AutoCommit} = 1;
+    my $sth = $s->db_Main->prepare_cached( $sql );
+    $sth->execute( @sql_vals );
+    my ($count) = $sth->fetchrow;
+    $sth->finish();
+    
+    return $count;
+  };
 }# end count_search()
 
 
@@ -536,12 +541,15 @@ sub count_search_like
   my @sql_vals  = map { $args{$_} } sort keys(%args);
   $sql .= join ' AND ', @sql_parts;
   
-  my $sth = $s->db_Main->prepare_cached( $sql );
-  $sth->execute( @sql_vals );
-  my ($count) = $sth->fetchrow;
-  $sth->finish();
-  
-  return $count;
+  SCOPE: {
+    local $s->db_Main->{AutoCommit} = 1;
+    my $sth = $s->db_Main->prepare_cached( $sql );
+    $sth->execute( @sql_vals );
+    my ($count) = $sth->fetchrow;
+    $sth->finish();
+    
+    return $count;
+  };
 }# end count_search_like()
 
 
@@ -580,12 +588,16 @@ sub count_search_where
   $phrase =~ s/^\s*WHERE\s*//i;
   
   my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} WHERE $phrase";
-  my $sth = $s->db_Main->prepare_cached($sql);
-  $sth->execute( @bind );
-  my ($count) = $sth->fetchrow;
-  $sth->finish;
   
-  return $count;
+  SCOPE: {
+    local $s->db_Main->{AutoCommit} = 1;
+    my $sth = $s->db_Main->prepare_cached($sql);
+    $sth->execute( @bind );
+    my ($count) = $sth->fetchrow;
+    $sth->finish;
+    
+    return $count;
+  };
 }# end count_search_where()
 
 
@@ -595,6 +607,9 @@ sub has_a
   my ($class, $method, $otherClass, $fk) = @_;
   
   $class->_load_class( $otherClass );
+
+  $class->_init_meta unless $class->_meta;
+
   $class->_meta->{has_a_rels}->{$method} = {
     class => $otherClass,
     fk    => $fk
