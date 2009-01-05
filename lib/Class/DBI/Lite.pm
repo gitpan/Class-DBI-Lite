@@ -13,7 +13,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.017';
+our $VERSION = '0.018';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -59,6 +59,7 @@ sub _init_meta
 {
   my $class = shift;
   
+  $class = ref($class) || $class;
   no strict 'refs';
   no warnings 'once';
   
@@ -149,6 +150,13 @@ sub _meta
   my $class = shift;
   $class = ref($class) || $class;
   no strict 'refs';
+  
+  unless( ${"$class\::meta"} )
+  {
+    # TODO: Make this work for more than 1 level inheritance depth:
+    $class->set_up_table( (@{"$class\::ISA"})[0]->table );
+  }# end unless()
+  
   @_ ? ${"$class\::meta"} = shift : ${"$class\::meta"};
 }# end _meta()
 
@@ -609,6 +617,7 @@ sub has_a
   $class->_load_class( $otherClass );
 
   $class->_init_meta unless $class->_meta;
+  $otherClass->_init_meta unless $otherClass->_meta;
 
   $class->_meta->{has_a_rels}->{$method} = {
     class => $otherClass,

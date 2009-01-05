@@ -6,11 +6,13 @@ t/000-basic.t
 t/000-compile.t
 t/001-connection.t
 t/003-memcycle.t
+t/004-subclassing.t
 t/testdb
 t/lib/My/City.pm
 t/lib/My/Model.pm
 t/lib/My/State.pm
 t/lib/My/User.pm
+t/lib/My/Province.pm
 lib/Class/DBI/Lite.pm
 lib/Class/DBI/Lite/Iterator.pm
 lib/Class/DBI/Lite/mysql.pm
