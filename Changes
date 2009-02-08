@@ -1,5 +1,11 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.019   2009-02-07
+  - Broke schema metadata and entity metadata out into their own classes.
+  - Metadata classes are schema/entity-partitioned singletons.
+  - Initialization process is slightly different as a result of metadata changes.
+  - Classes that subclass entity classes no longer have to call set_up_table(...).
+
 0.018   2009-01-05
   - Subclasses of entity classes should no longer receive 
     errors like "Can't use an undefined value as a HASH reference"

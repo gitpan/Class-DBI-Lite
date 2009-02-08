@@ -8,6 +8,7 @@ use Data::Dumper;
 
 __PACKAGE__->set_up_table('users');
 
+
 __PACKAGE__->add_trigger( before_update => sub {
   my $s = shift;
 });

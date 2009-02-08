@@ -8,12 +8,14 @@ use Carp qw( cluck confess );
 use SQL::Abstract;
 use SQL::Abstract::Limit;
 use Class::DBI::Lite::Iterator;
+use Class::DBI::Lite::RootMeta;
+use Class::DBI::Lite::EntityMeta;
 use overload 
   '""'      => sub { eval { $_[0]->id } },
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.018';
+our $VERSION = '0.019';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -26,7 +28,7 @@ our %DBI_OPTIONS = (
 );
 
 BEGIN {
-  use vars qw( $Weaken_Is_Available %Live_Objects );
+  use vars qw( $Weaken_Is_Available %Live_Objects $Connection );
 
   $Weaken_Is_Available = 1;
   eval {
@@ -44,6 +46,20 @@ sub get_last_insert_id;
 
 
 #==============================================================================
+sub import
+{
+  my $class = shift;
+  
+  no strict 'refs';
+  $class->_load_class( ( @{$class.'::ISA'} )[0] );
+  if( my $table = eval { ( @{$class.'::ISA'} )[0]->table } )
+  {
+    $class->set_up_table( $table );
+  }# end if()
+}# end import()
+
+
+#==============================================================================
 sub clear_object_index
 {
   my $s = shift;
@@ -52,41 +68,6 @@ sub clear_object_index
   my $key_starter = $s->root_meta->{schema} . ":" . $class;
   map { delete($Live_Objects{$_}) } grep { m/^$key_starter\:\d+/ } keys(%Live_Objects);
 }# end clear_object_index()
-
-
-#==============================================================================
-sub _init_meta
-{
-  my $class = shift;
-  
-  $class = ref($class) || $class;
-  no strict 'refs';
-  no warnings 'once';
-  
-  ${"$class\::meta"} ||= {
-    table         => undef, # Class-based
-    columns       => {      # Class-based
-      All       => [ ],
-      Primary   => [ ],
-      Essential => [ ],
-    },
-    triggers      => {      # Class-based
-      before_create => [ ],
-      after_create  => [ ],
-      before_update => [ ],
-      after_update  => [ ],
-      before_delete => [ ],
-      after_delete  => [ ],
-    },
-    has_a_rels    => { },   # Class-based
-    has_many_rels => { },   # Class-based
-  };
-  ${__PACKAGE__ . "::meta"} ||= {
-    dsn           => [ ],   # Global
-    schema        => undef, # Global
-  };
-  
-}# end _init_meta()
 
 
 #==============================================================================
@@ -104,7 +85,7 @@ sub find_column
 sub primary_column
 {
   my $s = shift;
-  $s->_meta->{columns}->{Primary}->[0];
+  ( $s->columns('Primary') )[0];
 }# end primary_column()
 
 
@@ -151,14 +132,20 @@ sub _meta
   $class = ref($class) || $class;
   no strict 'refs';
   
-  unless( ${"$class\::meta"} )
-  {
-    # TODO: Make this work for more than 1 level inheritance depth:
-    $class->set_up_table( (@{"$class\::ISA"})[0]->table );
-  }# end unless()
-  
-  @_ ? ${"$class\::meta"} = shift : ${"$class\::meta"};
+  ${"$class\::meta"};
 }# end _meta()
+
+
+#==============================================================================
+sub _init_meta
+{
+  my ($class, $entity) = @_;
+  
+  no strict 'refs';
+  no warnings 'once';
+  my $schema = $class->connection->[0];
+  ${"$class\::meta"} = Class::DBI::Lite::EntityMeta->new( $class, $schema, $entity );
+}# end _init_meta()
 
 
 #==============================================================================
@@ -166,10 +153,18 @@ sub connection
 {
   my ($class, @DSN) = @_;
   
-  $class->_init_meta;
-  ($class->root_meta->{schema}) = $DSN[0] =~ m/^DBI\:.*?\:([^:]+)/;
-  $class->root_meta->{dsn} = \@DSN;
+  if( $Connection && ! @DSN )
+  {
+    return $Connection;
+  }# end if()
   
+  # Set up the root meta:
+  no strict 'refs';
+  ${ $class->root . '::root_meta' } = Class::DBI::Lite::RootMeta->new(
+    \@DSN
+  );
+  
+  # Connect:
   undef(%Live_Objects);
   local $^W = 0;
   $class->set_db('Main' => @DSN, {
@@ -179,6 +174,12 @@ sub connection
 		Taint      => 1,
 		RootClass  => "DBIx::ContextualFetch"
   });
+  $Connection = \@DSN;
+  
+  if( my $entity = eval { $class->_meta->table } )
+  {
+    $class->_init_meta( $entity );
+  }# end if()
 }# end connection()
 
 
@@ -197,7 +198,7 @@ sub root_meta
   no strict 'refs';
   my $root = $s->root;
 
-  ${"$root\::meta"};
+  ${"$root\::root_meta"};
 }# end root_meta()
 
 
@@ -218,18 +219,20 @@ sub columns
     confess "Unknown column group '$type'" unless $type =~ m/^(All|Essential|Primary)$/;
     if( my @cols = @_ )
     {
-      $s->_meta->{columns}->{$type} = \@cols;
+      $s->_meta->columns->{$type} = \@cols;
     }
     else
     {
-      return unless $s->_meta->{columns}->{$type};
-      return @{ $s->_meta->{columns}->{$type} };
+      # Get: my ($PK) = $class->columns('Primary');
+      return @{ $s->_meta->columns->{$type} };
     }# end if()
   }
   else
   {
-    return @{ $s->_meta->{columns}->{All} };
+    
+    return @{ $s->_meta->columns->{All} };
   }# end if()
+
 }# end columns()
 
 
@@ -616,8 +619,8 @@ sub has_a
   
   $class->_load_class( $otherClass );
 
-  $class->_init_meta unless $class->_meta;
-  $otherClass->_init_meta unless $otherClass->_meta;
+#  $class->_init_meta unless $class->_meta;
+#  $otherClass->_init_meta unless $otherClass->_meta;
 
   $class->_meta->{has_a_rels}->{$method} = {
     class => $otherClass,
@@ -700,7 +703,8 @@ sub _call_triggers
 sub dbi_commit
 {
   my $s = shift;
-  $s->db_Main->commit;
+  $s->db_Main->commit
+    unless $s->db_Main->{AutoCommit};
 }# end dbi_commit()
 
 

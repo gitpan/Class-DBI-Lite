@@ -3,10 +3,10 @@
 use strict;
 use warnings 'all';
 use lib qw( lib t/lib );
-use My::Province;
 
 use Test::More 'no_plan';
 
+use_ok('My::Province');
 ok( my $provinces = My::Province->retrieve_all );
 
 

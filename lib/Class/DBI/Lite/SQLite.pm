@@ -12,11 +12,19 @@ sub set_up_table
 {
   my $s = shift;
   
-  $s->_init_meta;
-  
   # Get our columns:
   my $table = shift;
-  $s->_meta->{table} = $table;
+  $s->_init_meta( $table );
+  $s->after_set_up_table;
+  1;
+}# end set_up_table()
+
+
+#==============================================================================
+sub get_meta_columns
+{
+  my ($s, $schema, $table) = @_;
+
   my $sth = $s->db_Main->prepare(<<"");
     PRAGMA table_info( '$table' )
 
@@ -35,13 +43,13 @@ sub set_up_table
   
   confess "Table $table doesn't exist or has no columns"
     unless @cols;
-  
-  $s->columns( Primary => $PK );
-  $s->columns( Essential => @cols );
-  $s->columns( All => @cols );
-  $s->after_set_up_table;
-  1;
-}# end set_up_table()
+
+  return {
+    Primary   => [ $PK ],
+    Essential => \@cols,
+    All       => \@cols,
+  };
+}# end get_meta_columns()
 
 
 #==============================================================================

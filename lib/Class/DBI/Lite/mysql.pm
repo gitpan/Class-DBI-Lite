@@ -12,11 +12,21 @@ sub set_up_table
 {
   my $s = shift;
   
-  $s->_init_meta;
-  
   # Get our columns:
   my $table = shift;
-  $s->_meta->{table} = $table;
+  $s->_init_meta( $table );
+  $s->after_set_up_table;
+  1;
+}# end set_up_table()
+
+
+#==============================================================================
+sub get_meta_columns
+{
+  my ($s, $schema, $table) = @_;
+  
+  ($schema) = $schema =~ m/DBI\:mysql\:([^:]+)/;
+  # Get our columns:
   my $sth = $s->db_Main->prepare(<<"");
     SELECT *
     FROM information_schema.columns
@@ -24,7 +34,7 @@ sub set_up_table
     AND table_name = ?
 
   # Simple discovery of fields and PK:
-  $sth->execute( $s->schema, $table );
+  $sth->execute( $schema, $table );
   my @cols = ( );
   my $PK;
   while( my $rec = $sth->fetchrow_hashref )
@@ -38,13 +48,14 @@ sub set_up_table
   }# end while()
   $sth->finish();
   
-  confess "Table " . $s->schema . ".$table doesn't exist or has no columns"
+  confess "Table " . $schema . ".$table doesn't exist or has no columns"
     unless @cols;
   
-  $s->columns( Primary => $PK );
-  $s->columns( Essential => @cols );
-  $s->columns( All => @cols );
-  $s->after_set_up_table;
+  return {
+    Primary   => [ $PK ],
+    Essential => \@cols,
+    All       => \@cols,
+  };
   1;
 }# end set_up_table()
 

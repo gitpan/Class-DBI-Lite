@@ -17,5 +17,7 @@ lib/Class/DBI/Lite.pm
 lib/Class/DBI/Lite/Iterator.pm
 lib/Class/DBI/Lite/mysql.pm
 lib/Class/DBI/Lite/SQLite.pm
+lib/Class/DBI/Lite/RootMeta.pm
+lib/Class/DBI/Lite/EntityMeta.pm
 
 META.yml                                 Module meta-data (added by MakeMaker)

@@ -3,11 +3,13 @@
 use strict;
 use warnings 'all';
 use lib qw( lib t/lib );
-use My::User;
-use My::State;
-use My::City;
 
 use Test::More 'no_plan';
+
+use_ok( 'My::User' );
+use_ok( 'My::State' );
+use_ok( 'My::City' );
+
 
 
 is(
