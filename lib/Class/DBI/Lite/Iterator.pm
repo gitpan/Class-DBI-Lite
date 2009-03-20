@@ -56,11 +56,6 @@ __END__
 
 Class::DBI::Lite::Iterator - Simple iterator for Class::DBI::Lite
 
-=head1 EXPERIMENTAL STATUS
-
-B<**NOTE**:> This module is still under development.  It is likely to change
-in dramatic ways without any warning.
-
 =head1 SYNOPSIS
 
   # Get an iterator somehow:

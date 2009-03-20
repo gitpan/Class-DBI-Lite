@@ -12,11 +12,6 @@ sub new
 {
   my ($s, $forClass, $schema, $entity) = @_;
 
-use Carp 'confess';
-confess "Entity: '$entity'" if $entity =~ m/\:/;
-#  confess "ForClass: '$forClass', Schema: '$schema', Entity: '$entity'"
-#    unless $entity;
-  
   my $key = join ':', ( $schema, $entity );
   if( my $inst = $instances{$key} )
   {
@@ -36,13 +31,8 @@ confess "Entity: '$entity'" if $entity =~ m/\:/;
       },
       has_a_rels    => { },   # Class-based
       has_many_rels => { },   # Class-based,
-      columns       => #{      # Class-based
-        $forClass->get_meta_columns( $schema, $entity )
-#        All       => [ ],
-#        Primary   => [ ],
-#        Essential => [ ],
-      #}
-    }, ref($s) || $s;
+      columns       => $forClass->get_meta_columns( $schema, $entity )
+    }, $s;
   }# end if()
 }# end new()
 

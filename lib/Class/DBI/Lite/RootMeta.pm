@@ -22,7 +22,7 @@ sub new
     return $instances{$key} = bless {
       dsn           => $dsn,    # Global
       schema        => $dsn->[0], # Global
-    }, ref($s) || $s;
+    }, $s;
   }# end if()
 }# end new()
 

@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.019';
+our $VERSION = '0.020';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -64,7 +64,7 @@ sub clear_object_index
 {
   my $s = shift;
   
-  my $class = ref($s) || $s;
+  my $class = ref($s) ? ref($s) : $s;
   my $key_starter = $s->root_meta->{schema} . ":" . $class;
   map { delete($Live_Objects{$_}) } grep { m/^$key_starter\:\d+/ } keys(%Live_Objects);
 }# end clear_object_index()
@@ -129,7 +129,7 @@ sub triggers { @{ $_[0]->_meta->{triggers}->{ $_[1] } } }
 sub _meta
 {
   my $class = shift;
-  $class = ref($class) || $class;
+  $class = ref($class) ? ref($class) : $class;
   no strict 'refs';
   
   ${"$class\::meta"};
@@ -281,7 +281,7 @@ sub create
     
     # Changes may have happened to the original creation data (from the trigger(s)) - re-evaluate now:
     %create_fields =  map { $_ => $pre_obj->{$_} }
-                        grep { exists($pre_obj->{$_}) && defined($pre_obj->{$_}) && $_ ne $PK }
+                        grep { defined($pre_obj->{$_}) && $_ ne $PK }
                           $pre_obj->columns('All');
     $data = { %$pre_obj  };
     
@@ -338,7 +338,7 @@ sub update
   my $s = shift;
   confess "$s\->update cannot be called without an object" unless ref($s);
   
-  return unless $s->{__Changed} && keys(%{ $s->{__Changed} });
+  return 1 unless eval { keys(%{ $s->{__Changed} }) };
   
   local $s->db_Main->{AutoCommit} = 0;
   eval {
@@ -575,7 +575,7 @@ sub search_where
   my $limit  = ($attr)    ? delete($attr->{limit})    : undef;
   my $offset = ($attr)    ? delete($attr->{offset})   : undef;
   
-  my $sql = SQL::Abstract::Limit->new(%$attr);
+  my $sql = SQL::Abstract::Limit->new(%$attr, limit_dialect => $s->db_Main );
   my($phrase, @bind) = $sql->where($where, $order, $limit, $offset);
   $phrase =~ s/^\s*WHERE\s*//i;
   
@@ -594,7 +594,7 @@ sub count_search_where
   my $limit  = ($attr)    ? delete($attr->{limit})    : undef;
   my $offset = ($attr)    ? delete($attr->{offset})   : undef;
   
-  my $abstract = SQL::Abstract::Limit->new(%$attr);
+  my $abstract = SQL::Abstract::Limit->new(%$attr, limit_dialect => $s->db_Main );
   my($phrase, @bind) = $abstract->where($where, $order, $limit, $offset);
   $phrase =~ s/^\s*WHERE\s*//i;
   
@@ -618,9 +618,6 @@ sub has_a
   my ($class, $method, $otherClass, $fk) = @_;
   
   $class->_load_class( $otherClass );
-
-#  $class->_init_meta unless $class->_meta;
-#  $otherClass->_init_meta unless $otherClass->_meta;
 
   $class->_meta->{has_a_rels}->{$method} = {
     class => $otherClass,
@@ -674,9 +671,12 @@ sub add_trigger
 {
   my ($s, $event, $handler) = @_;
   
+  confess "add_trigger called but the handler is not a subref"
+    unless ref($handler) eq 'CODE';
+  
   my $handlers = $s->_meta->{triggers}->{$event};
   return if grep { $_ eq $handler } @$handlers;
-  
+
   push @$handlers, $handler;
 }# end add_trigger()
 
@@ -730,8 +730,13 @@ sub discard_changes
 {
   my $s = shift;
   
+  map {
+    $s->{$_} = $s->{__Changed}->{$_}->{oldval}
+  } keys(%{$s->{__Changed}});
+  
   $s->{__Changed} = { };
-  $s = ref($s)->retrieve( $s->id );
+  
+  1;
 }# end discard_changes()
 
 
@@ -784,7 +789,6 @@ sub AUTOLOAD
       my $newval = shift;
       no warnings 'uninitialized';
       return $newval if $newval eq $s->{$name};
-      $s->{__Changed} ||= { };
       $s->_call_triggers( "before_set_$name", $s->{$name}, $newval );
       $s->{__Changed}->{$name} = {
         oldval => $s->{$name}
@@ -799,7 +803,7 @@ sub AUTOLOAD
   else
   {
     my $class = ref($s) ? ref($s) : $s;
-    confess "Uknown field or method '$name' for class $class";
+    confess "Unknown field or method '$name' for class $class";
   }# end if()
 }# end AUTOLOAD()
 

@@ -1,5 +1,12 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.020   2009-03-20
+  - Converted to Module::Install.
+  - Added several tests, improved code-coverage.
+  - discard_changes() now uses the __Changed->{$fieldname}->{oldval} data instead
+    of re-retrieving the object from the database.
+  - Fixed typo in error message for AUTOLOAD in Class::DBI::Lite.
+
 0.019   2009-02-07
   - Broke schema metadata and entity metadata out into their own classes.
   - Metadata classes are schema/entity-partitioned singletons.
