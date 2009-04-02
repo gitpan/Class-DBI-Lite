@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.020';
+our $VERSION = '0.021';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -33,7 +33,7 @@ BEGIN {
   $Weaken_Is_Available = 1;
   eval {
 	  require Scalar::Util;
-	  import Scalar::Util qw(weaken);
+	  import Scalar::Util qw(weaken isweak);
   };
   $Weaken_Is_Available = 0 if $@;
 }# end BEGIN:
@@ -66,7 +66,7 @@ sub clear_object_index
   
   my $class = ref($s) ? ref($s) : $s;
   my $key_starter = $s->root_meta->{schema} . ":" . $class;
-  map { delete($Live_Objects{$_}) } grep { m/^$key_starter\:\d+/ } keys(%Live_Objects);
+  map { delete($Live_Objects{$_}) } grep { m/^$key_starter\:\d+/o } keys(%Live_Objects);
 }# end clear_object_index()
 
 
@@ -82,11 +82,16 @@ sub find_column
 
 
 #==============================================================================
-sub primary_column
-{
-  my $s = shift;
-  ( $s->columns('Primary') )[0];
-}# end primary_column()
+#sub primary_column
+#{
+#  my $s = shift;
+#  
+#  my $meta = $s->_meta;
+#  return $meta->{primary_column}
+#    if $meta->{primary_column};
+#  $meta->{primary_column} = ( $s->columns('Primary') )[0];
+##  ( $s->columns('Primary') )[0];
+#}# end primary_column()
 
 
 #==============================================================================
@@ -100,15 +105,24 @@ sub construct
   my $key = join ':', grep { defined($_) } ( $s->root_meta->{schema}, $class, $data->{ $PK } );
   return $Live_Objects{$key} if $Live_Objects{$key};
   
-  my $obj = bless {
-    %$data,
-    __id => $data->{ $PK },
-    __Changed => { },
-  }, $class;
-  $Live_Objects{$key} = $obj;
-  weaken( $Live_Objects{$key} = $obj )
-    if $Weaken_Is_Available;
-  return $obj;
+  $data->{__id} = $data->{ $PK };
+  $data->{__Changed} = { };
+  
+  my $obj = bless $data, $class;
+  if( $Weaken_Is_Available )
+  {
+    $Live_Objects{$key} = $obj;
+    
+    weaken( $Live_Objects{$key} );
+    return $Live_Objects{$key};
+  }
+  else
+  {
+    return $obj;
+  }# end if()
+#  $Weaken_Is_Available && weaken( $Live_Objects{$key} = $obj );
+#    if $Weaken_Is_Available;
+#  return $obj;
 }# end construct()
 
 
@@ -126,14 +140,17 @@ sub schema { $_[0]->root_meta->{schema} }
 sub dsn    { $_[0]->root_meta->{dsn} }
 sub table  { $_[0]->_meta->{table} }
 sub triggers { @{ $_[0]->_meta->{triggers}->{ $_[1] } } }
-sub _meta
-{
-  my $class = shift;
-  $class = ref($class) ? ref($class) : $class;
-  no strict 'refs';
-  
-  ${"$class\::meta"};
-}# end _meta()
+sub _meta { }
+#{
+#  my $class = shift;
+##  $class = ref($class) ? ref($class) : $class;
+#  no strict 'refs';
+#  no warnings 'once';
+#use Data::Dumper;
+#warn "NO META? . " . Dumper( ${"$class\::meta"} );
+#
+#  ${"$class\::meta"};
+#}# end _meta()
 
 
 #==============================================================================
@@ -142,9 +159,16 @@ sub _init_meta
   my ($class, $entity) = @_;
   
   no strict 'refs';
-  no warnings 'once';
+  no warnings qw( once redefine );
   my $schema = $class->connection->[0];
-  ${"$class\::meta"} = Class::DBI::Lite::EntityMeta->new( $class, $schema, $entity );
+  
+#  ${"$class\::meta"} = Class::DBI::Lite::EntityMeta->new( $class, $schema, $entity );
+  
+  my $_class_meta = Class::DBI::Lite::EntityMeta->new( $class, $schema, $entity );
+  *{"$class\::_meta"} = sub { $_class_meta };
+  
+  my $pk = ($class->columns('Primary'))[0];
+  *{"$class\::primary_column"} = sub { $pk };
 }# end _init_meta()
 
 
@@ -160,9 +184,15 @@ sub connection
   
   # Set up the root meta:
   no strict 'refs';
-  ${ $class->root . '::root_meta' } = Class::DBI::Lite::RootMeta->new(
+  no warnings 'redefine';
+  my $meta = Class::DBI::Lite::RootMeta->new(
     \@DSN
   );
+  *{ $class->root . "::root_meta" } = sub { $meta };
+
+#  ${ $class->root . "::root_meta" } = Class::DBI::Lite::RootMeta->new(
+#    \@DSN
+#  );
   
   # Connect:
   undef(%Live_Objects);
@@ -176,10 +206,10 @@ sub connection
   });
   $Connection = \@DSN;
   
-  if( my $entity = eval { $class->_meta->table } )
-  {
-    $class->_init_meta( $entity );
-  }# end if()
+#  if( my $entity = eval { $class->_meta->table } )
+#  {
+#    $class->_init_meta( $entity );
+#  }# end if()
 }# end connection()
 
 
@@ -210,13 +240,19 @@ sub id
 
 
 #==============================================================================
+my %ok_types = (
+  All       => 1,
+  Essential => 1,
+  Primary   => 1,
+);
 sub columns
 {
   my ($s) = shift;
   
+  
   if( my $type = shift(@_) )
   {
-    confess "Unknown column group '$type'" unless $type =~ m/^(All|Essential|Primary)$/;
+    confess "Unknown column group '$type'" unless $ok_types{$type};
     if( my @cols = @_ )
     {
       $s->_meta->columns->{$type} = \@cols;
@@ -229,7 +265,6 @@ sub columns
   }
   else
   {
-    
     return @{ $s->_meta->columns->{All} };
   }# end if()
 
@@ -241,7 +276,7 @@ sub retrieve_all
 {
   my ($s) = @_;
   
-  return $s->retrieve_from_sql( "" );
+  return $s->retrieve_from_sql(  );
 }# end retrieve_all()
 
 
@@ -261,6 +296,7 @@ sub retrieve
 sub create
 {
   my $s = shift;
+  
   my $data = ref($_[0]) ? $_[0] : { @_ };
   
   my $PK = $s->primary_column;
@@ -274,62 +310,68 @@ sub create
     %create_fields
   }, ref($s) ? ref($s) : $s;
   
-  local $s->db_Main->{AutoCommit} = 0;
-  my $obj = eval {
-    # Cal the "before" trigger:
-    $pre_obj->_call_triggers( before_create => \%create_fields );
-    
-    # Changes may have happened to the original creation data (from the trigger(s)) - re-evaluate now:
-    %create_fields =  map { $_ => $pre_obj->{$_} }
-                        grep { defined($pre_obj->{$_}) && $_ ne $PK }
-                          $pre_obj->columns('All');
-    $data = { %$pre_obj  };
-    
-    my @fields  = map { $_ } sort grep { exists($data->{$_}) } keys(%create_fields);
-    my @vals    = map { $data->{$_} } sort grep { exists($data->{$_}) } keys(%create_fields);
-    
-    my $sql = <<"";
-      INSERT INTO @{[ $s->table ]} (
-        @{[ join ',', @fields ]}
-      )
-      VALUES (
-        @{[ join ',', map {"?"} @vals ]}
-      )
+  # Cal the "before" trigger:
+  $pre_obj->_call_triggers( before_create => \%create_fields );
+  
+  # Changes may have happened to the original creation data (from the trigger(s)) - re-evaluate now:
+  %create_fields =  map { $_ => $pre_obj->{$_} }
+                      grep { defined($pre_obj->{$_}) && $_ ne $PK }
+                        $pre_obj->columns('All');
+  $data = { %$pre_obj  };
+  
+  my @fields  = map { $_ } sort grep { exists($data->{$_}) } keys(%create_fields);
+  my @vals    = map { $data->{$_} } sort grep { exists($data->{$_}) } keys(%create_fields);
+  
+  my $sql = <<"";
+    INSERT INTO @{[ $s->table ]} (
+      @{[ join ',', @fields ]}
+    )
+    VALUES (
+      @{[ join ',', map {"?"} @vals ]}
+    )
 
-    my $sth = $s->db_Main->prepare_cached( $sql );
-    $sth->execute( map { $pre_obj->$_ } @fields );
-    my $id = $s->get_last_insert_id
-      or confess "ERROR - CANNOT get last insert id";
-    $sth->finish();
-    
-    my $obj = $s->retrieve( $id );
-    $obj->_call_triggers( after_create => $obj );
-    delete($pre_obj->{__Changed});
-    undef(%$pre_obj);
-    $s->dbi_commit;
-    $obj;
-  };
+  my $sth = $s->db_Main->prepare_cached( $sql );
+  $sth->execute( map { $pre_obj->{$_} } @fields );
+  my $id = $s->get_last_insert_id
+    or confess "ERROR - CANNOT get last insert id";
+  $sth->finish();
+  
+  $pre_obj->{$PK} = $id;
+  $pre_obj->_call_triggers( after_create => $pre_obj );
+  $pre_obj;
+}# end create()
+
+
+#==============================================================================
+sub do_transaction
+{
+  my ($s, $code) = @_;
+  
+  local $s->db_Main->{AutoCommit};
+  my $res = eval { $code->( ) };
+  
   if( my $trans_error = $@ )
   {
     eval { $s->dbi_rollback };
     if( my $rollback_error = $@ )
     {
-      confess join "\n\t",  "Both transaction and rollback failed:",
+      warn join "\n\t",  "Both transaction and rollback failed:",
                             "Transaction error: $trans_error",
                             "Rollback Error: $rollback_error";
     }
     else
     {
-      confess join "\n\t",  "Transaction failed but rollback succeeded:",
+      warn join "\n\t",  "Transaction failed but rollback succeeded:",
                             "Transaction error: $trans_error";
     }# end if()
   }
   else
   {
     # Success:
-    return $obj;
+    $s->commit;
+    return $res;
   }# end if()
-}# end create()
+}# end do_transaction()
 
 
 #==============================================================================
@@ -703,8 +745,8 @@ sub _call_triggers
 sub dbi_commit
 {
   my $s = shift;
-  $s->db_Main->commit
-    unless $s->db_Main->{AutoCommit};
+  return if $s->db_Main->{AutoCommit};
+  $s->SUPER::commit( @_ );
 }# end dbi_commit()
 
 
@@ -721,7 +763,7 @@ sub remove_from_object_index
 sub dbi_rollback
 {
   my $s = shift;
-  $s->db_Main->rollback;
+  $s->SUPER::rollback( @_ );
 }# end dbi_rollback()
 
 
@@ -819,7 +861,6 @@ sub DESTROY
     cluck ref($s) . " #$s->{__id} DESTROY'd without saving changes to $changed";
   }# end if()
   
-  $s->dbi_commit unless $s->db_Main->{AutoCommit};
   delete($s->{$_}) foreach keys(%$s);
 }# end DESTROY()
 

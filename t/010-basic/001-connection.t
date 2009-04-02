@@ -47,10 +47,11 @@ my $userID;
 # uniqueness of objects in memory:
 {
   $_->delete foreach My::State->retrieve_all;
-  my $A = My::State->create({
+  My::State->create(
     state_name => 'Colorado',
     state_abbr => 'CO'
-  });
+  );
+  my ($A) = My::State->search( state_abbr => 'CO' );
   my ($B) = My::State->search( state_abbr => 'CO' );
   $B->state_abbr('IA');
   is(

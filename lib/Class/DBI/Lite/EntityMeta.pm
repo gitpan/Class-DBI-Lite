@@ -31,7 +31,7 @@ sub new
       },
       has_a_rels    => { },   # Class-based
       has_many_rels => { },   # Class-based,
-      columns       => $forClass->get_meta_columns( $schema, $entity )
+      columns       => $forClass->get_meta_columns( $schema, $entity ),
     }, $s;
   }# end if()
 }# end new()

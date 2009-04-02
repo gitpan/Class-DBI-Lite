@@ -25,6 +25,7 @@ sub get_meta_columns
 {
   my ($s, $schema, $table) = @_;
 
+  local $s->db_Main->{AutoCommit};
   my $sth = $s->db_Main->prepare(<<"");
     PRAGMA table_info( '$table' )
 

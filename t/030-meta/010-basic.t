@@ -155,6 +155,7 @@ ok(
 
 # fleshing out incomplete objects:
 {
+  My::State->clear_object_index;
   My::State->columns('Essential' => qw/
     state_id
   /);

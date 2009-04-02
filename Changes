@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.021   2009-04-01
+  - There was a rogue "commit" statement in DESTROY.  Removing it made transactions
+    work properly.
+  - Added test for transactions.
+
 0.020   2009-03-20
   - Converted to Module::Install.
   - Added several tests, improved code-coverage.

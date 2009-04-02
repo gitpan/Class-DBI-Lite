@@ -16,6 +16,7 @@ t/010-basic/000-compile.t
 t/010-basic/003-memcycle.t
 t/010-basic/000-basic.t
 t/010-basic/001-connection.t
+t/040-transactions/010-basic.t
 t/testdb
 t/lib/My/City.pm
 t/lib/My/Model.pm
