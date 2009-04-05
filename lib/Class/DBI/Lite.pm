@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.021';
+our $VERSION = '0.022';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -82,19 +82,6 @@ sub find_column
 
 
 #==============================================================================
-#sub primary_column
-#{
-#  my $s = shift;
-#  
-#  my $meta = $s->_meta;
-#  return $meta->{primary_column}
-#    if $meta->{primary_column};
-#  $meta->{primary_column} = ( $s->columns('Primary') )[0];
-##  ( $s->columns('Primary') )[0];
-#}# end primary_column()
-
-
-#==============================================================================
 sub construct
 {
   my ($s, $data) = @_;
@@ -120,9 +107,6 @@ sub construct
   {
     return $obj;
   }# end if()
-#  $Weaken_Is_Available && weaken( $Live_Objects{$key} = $obj );
-#    if $Weaken_Is_Available;
-#  return $obj;
 }# end construct()
 
 
@@ -141,16 +125,6 @@ sub dsn    { $_[0]->root_meta->{dsn} }
 sub table  { $_[0]->_meta->{table} }
 sub triggers { @{ $_[0]->_meta->{triggers}->{ $_[1] } } }
 sub _meta { }
-#{
-#  my $class = shift;
-##  $class = ref($class) ? ref($class) : $class;
-#  no strict 'refs';
-#  no warnings 'once';
-#use Data::Dumper;
-#warn "NO META? . " . Dumper( ${"$class\::meta"} );
-#
-#  ${"$class\::meta"};
-#}# end _meta()
 
 
 #==============================================================================
@@ -161,8 +135,6 @@ sub _init_meta
   no strict 'refs';
   no warnings qw( once redefine );
   my $schema = $class->connection->[0];
-  
-#  ${"$class\::meta"} = Class::DBI::Lite::EntityMeta->new( $class, $schema, $entity );
   
   my $_class_meta = Class::DBI::Lite::EntityMeta->new( $class, $schema, $entity );
   *{"$class\::_meta"} = sub { $_class_meta };
@@ -189,10 +161,6 @@ sub connection
     \@DSN
   );
   *{ $class->root . "::root_meta" } = sub { $meta };
-
-#  ${ $class->root . "::root_meta" } = Class::DBI::Lite::RootMeta->new(
-#    \@DSN
-#  );
   
   # Connect:
   undef(%Live_Objects);
@@ -205,11 +173,6 @@ sub connection
 		RootClass  => "DBIx::ContextualFetch"
   });
   $Connection = \@DSN;
-  
-#  if( my $entity = eval { $class->_meta->table } )
-#  {
-#    $class->_init_meta( $entity );
-#  }# end if()
 }# end connection()
 
 
@@ -335,6 +298,7 @@ sub create
   my $id = $s->get_last_insert_id
     or confess "ERROR - CANNOT get last insert id";
   $sth->finish();
+  $pre_obj->discard_changes();
   
   $pre_obj->{$PK} = $id;
   $pre_obj->_call_triggers( after_create => $pre_obj );
@@ -382,59 +346,35 @@ sub update
   
   return 1 unless eval { keys(%{ $s->{__Changed} }) };
   
-  local $s->db_Main->{AutoCommit} = 0;
-  eval {
-    $s->_call_triggers( before_update => $s );
-    
-    my $changed = $s->{__Changed};
-    my @fields  = map { "$_ = ?" } grep { $changed->{$_} } sort keys(%$s);
-    my @vals    = map { $s->{$_} } grep { $changed->{$_} } sort keys(%$s);
-    
-    foreach my $field ( keys(%$s) )
-    {
-      $s->_call_triggers( "before_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
-    }# end foreach()
-    
-    # Make our SQL:
-    my $sql = <<"";
-      UPDATE @{[ $s->table ]} SET
-        @{[ join ', ', @fields ]}
-      WHERE @{[ $s->primary_column ]} = ?
-
-    my $sth = $s->db_Main->prepare_cached( $sql );
-    $sth->execute( @vals, $s->id );
-    $sth->finish();
-    
-    foreach my $field ( keys(%$s) )
-    {
-      $s->_call_triggers( "after_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
-    }# end foreach()
-    
-    $s->{__Changed} = undef;
-    $s->_call_triggers( after_update => $s );
-    $s->dbi_commit;
-  };
+  $s->_call_triggers( before_update => $s );
   
-  if( my $trans_error = $@ )
+  my $changed = $s->{__Changed};
+  my @fields  = map { "$_ = ?" } grep { $changed->{$_} } sort keys(%$s);
+  my @vals    = map { $s->{$_} } grep { $changed->{$_} } sort keys(%$s);
+  
+  foreach my $field ( keys(%$s) )
   {
-    eval { $s->dbi_rollback };
-    if( my $rollback_error = $@ )
-    {
-      confess join "\n\t",  "Both transaction and rollback failed:",
-                            "Transaction error: $trans_error",
-                            "Rollback Error: $rollback_error";
-    }
-    else
-    {
-      confess join "\n\t",  "Transaction failed but rollback succeeded:",
-                            "Transaction error: $trans_error";
-    }# end if()
-  }
-  else
+    $s->_call_triggers( "before_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
+  }# end foreach()
+  
+  # Make our SQL:
+  my $sql = <<"";
+    UPDATE @{[ $s->table ]} SET
+      @{[ join ', ', @fields ]}
+    WHERE @{[ $s->primary_column ]} = ?
+
+  my $sth = $s->db_Main->prepare_cached( $sql );
+  $sth->execute( @vals, $s->id );
+  $sth->finish();
+  
+  foreach my $field ( keys(%$s) )
   {
-    # Success:
-    return 1;
-  }# end if()
+    $s->_call_triggers( "after_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
+  }# end foreach()
+  
+  $s->{__Changed} = undef;
+  $s->_call_triggers( after_update => $s );
+  return 1;
 }# end update()
 
 
@@ -445,48 +385,53 @@ sub delete
   
   confess "$s\->delete cannot be called without an object" unless ref($s);
   
-  local $s->db_Main->{AutoCommit} = 0;
-  eval {
-    $s->_call_triggers( before_delete => $s );
-    
-    my $sql = <<"";
-      DELETE FROM @{[ $s->table ]}
-      WHERE @{[ $s->primary_column ]} = ?
+  $s->_call_triggers( before_delete => $s );
+  
+  my $sql = <<"";
+    DELETE FROM @{[ $s->table ]}
+    WHERE @{[ $s->primary_column ]} = ?
 
-    my $sth = $s->db_Main->prepare_cached( $sql );
-    $sth->execute( $s->id );
-    $sth->finish();
-    
-    my $deleted = bless { $s->primary_column => $s->id }, ref($s);
-    my $key = join ':', grep { defined($_) } ($s->root_meta->{schema}, ref($s), $s->id );
-    $s->_call_triggers( after_delete => $deleted );
-    delete($Live_Objects{$key});
-    undef(%$deleted);
-    
-    undef(%$s);
-    $s->dbi_commit;
-  };
-  if( my $trans_error = $@ )
-  {
-    eval { $s->dbi_rollback };
-    if( my $rollback_error = $@ )
-    {
-      confess join "\n\t",  "Both transaction and rollback failed:",
-                            "Transaction error: $trans_error",
-                            "Rollback Error: $rollback_error";
-    }
-    else
-    {
-      confess join "\n\t",  "Transaction failed but rollback succeeded:",
-                            "Transaction error: $trans_error";
-    }# end if()
-  }
-  else
-  {
-    # Success:
-    $s->deconstruct;
-  }# end if()
+  my $sth = $s->db_Main->prepare_cached( $sql );
+  $sth->execute( $s->id );
+  $sth->finish();
+  
+  my $deleted = bless { $s->primary_column => $s->id }, ref($s);
+  my $key = join ':', grep { defined($_) } ($s->root_meta->{schema}, ref($s), $s->id );
+  $s->_call_triggers( after_delete => $deleted );
+  delete($Live_Objects{$key});
+  undef(%$deleted);
+  
+  undef(%$s);
+
+  $s->deconstruct;
 }# end delete()
+
+
+#==============================================================================
+sub ad_hoc
+{
+  my ($s, %args) = @_;
+  
+  my $sth = $s->db_Main->prepare( $args{sql} );
+  $args{args} ||= [ ];
+  $args{isa}  ||= 'Class::DBI::Lite';
+  $sth->execute( @{ $args{args} } );
+  my @data = ( );
+  require Class::DBI::Lite::AdHocEntity;
+  while( my $rec = $sth->fetchrow_hashref )
+  {
+    push @data, Class::DBI::Lite::AdHocEntity->new(
+      isa         => $args{isa},
+      sql         => \$args{sql},
+      args        => $args{args},
+      primary_key => $args{primary_key},
+      data        => $rec,
+    );
+  }# end while()
+  $sth->finish();
+  
+  return wantarray ? @data : Class::DBI::Lite::Iterator->new( \@data );
+}# end ad_hoc()
 
 
 #==============================================================================
@@ -496,7 +441,6 @@ sub retrieve_from_sql
   
   $sql = "SELECT @{[ join ', ', $s->columns('Essential') ]} FROM @{[ $s->table ]}" . ( $sql ? " WHERE $sql " : "" );
   SCOPE: {
-    local $s->db_Main->{AutoCommit} = 1;
     my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( @bind );
     
@@ -557,7 +501,6 @@ sub count_search
   $sql .= join ' AND ', @sql_parts;
   
   SCOPE: {
-    local $s->db_Main->{AutoCommit} = 1;
     my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( @sql_vals );
     my ($count) = $sth->fetchrow;
@@ -595,7 +538,6 @@ sub count_search_like
   $sql .= join ' AND ', @sql_parts;
   
   SCOPE: {
-    local $s->db_Main->{AutoCommit} = 1;
     my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( @sql_vals );
     my ($count) = $sth->fetchrow;
@@ -643,7 +585,6 @@ sub count_search_where
   my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} WHERE $phrase";
   
   SCOPE: {
-    local $s->db_Main->{AutoCommit} = 1;
     my $sth = $s->db_Main->prepare_cached($sql);
     $sth->execute( @bind );
     my ($count) = $sth->fetchrow;

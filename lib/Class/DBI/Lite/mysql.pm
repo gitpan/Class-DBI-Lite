@@ -4,6 +4,7 @@ package Class::DBI::Lite::mysql;
 use strict;
 use warnings 'all';
 use base 'Class::DBI::Lite';
+use Class::DBI::Lite::TableInfo;
 use Carp 'confess';
 
 
@@ -62,6 +63,47 @@ sub get_meta_columns
 
 #==============================================================================
 sub after_set_up_table { }
+
+
+#==============================================================================
+sub get_table_info
+{
+  my $s = shift;
+  my $class = ref($s) || $s;
+  my $cur = $class->db_Main->prepare("SHOW COLUMNS FROM " . $class->table);
+  $cur->execute;
+  
+  my $info = Class::DBI::Lite::TableInfo->new( $class->table );
+  
+  my %key_types = (
+    UNI => 'unique',
+    PRI => 'primary_key'
+  );
+  
+  while( my $res = $cur->fetchrow_hashref )
+  {
+    $res->{lc($_)} = delete($res->{$_}) foreach keys(%$res);
+    
+    my ($type) = $res->{type} =~ m/^([^\(\)]+)/;
+    my $length;
+    if( $type =~ m/(text|varchar|char)/i )
+    {
+      ($length) = $res->{type} =~ m/\((\d+)\)/;
+    }# end if()
+    $info->add_column(
+      name          => $res->{field},
+      type          => lc($type),
+      length        => $length,
+      is_pk         => $res->{key} eq 'PRI' ? 1 : 0,
+      is_nullable   => $res->{null} eq 'NO' ? 0 : 1,
+      default_value => $res->{default},
+      key           => $key_types{ $res->{key} },
+    );
+  }# end while()
+  $cur->finish;
+  
+  return $info;
+}# end get_table_info()
 
 
 #==============================================================================

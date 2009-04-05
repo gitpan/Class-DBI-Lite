@@ -17,6 +17,7 @@ t/010-basic/003-memcycle.t
 t/010-basic/000-basic.t
 t/010-basic/001-connection.t
 t/040-transactions/010-basic.t
+t/050-table-info/010-basic.t
 t/testdb
 t/lib/My/City.pm
 t/lib/My/Model.pm
@@ -29,5 +30,7 @@ lib/Class/DBI/Lite/mysql.pm
 lib/Class/DBI/Lite/SQLite.pm
 lib/Class/DBI/Lite/RootMeta.pm
 lib/Class/DBI/Lite/EntityMeta.pm
+lib/Class/DBI/Lite/TableInfo.pm
+lib/Class/DBI/Lite/ColumnInfo.pm
 
 META.yml                                 Module meta-data (added by MakeMaker)

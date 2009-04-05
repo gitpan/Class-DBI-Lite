@@ -5,6 +5,7 @@ use strict;
 use warnings 'all';
 use base 'Class::DBI::Lite';
 use Carp 'confess';
+use Class::DBI::Lite::TableInfo;
 
 
 #==============================================================================
@@ -55,6 +56,46 @@ sub get_meta_columns
 
 #==============================================================================
 sub after_set_up_table { }
+
+
+#==============================================================================
+sub get_table_info
+{
+  my $s = shift;
+  my $class = ref($s) || $s;
+  my $table = $class->table;
+  my $cur = $class->db_Main->prepare("PRAGMA table_info('$table')");
+  $cur->execute;
+  
+  my $info = Class::DBI::Lite::TableInfo->new( $class->table );
+  
+  my %key_types = (
+    UNI => 'unique',
+    PRI => 'primary_key'
+  );
+  
+  while( my $res = $cur->fetchrow_hashref )
+  {
+    my ($type) = $res->{type} =~ m/^([^\(\)]+)/;
+    my $length;
+    if( $type =~ m/(text|varchar|char)/i )
+    {
+      ($length) = $res->{type} =~ m/\((\d+)\)/;
+    }# end if()
+    $info->add_column(
+      name          => $res->{name},
+      type          => lc($type),
+      length        => $length,
+      is_pk         => $res->{pk} ? 1 : 0,
+      is_nullable   => $res->{notnull} ? 0 : 1,
+      default_value => $res->{dflt_value},
+      key           => undef,
+    );
+  }# end while()
+  $cur->finish;
+  
+  return $info;
+}# end get_table_info()
 
 
 #==============================================================================
