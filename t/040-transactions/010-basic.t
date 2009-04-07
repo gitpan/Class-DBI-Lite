@@ -34,15 +34,17 @@ map { $_->delete } $state->cities;
 ok( ! $state->cities->count, 'state has no cities' );
 
 
-$state->do_transaction(sub {
-  my $city = My::City->create(
-    state_id  => $state->id,
-    city_name => 'test-city111'
-  );
-  local $^W;
-  $SIG{__WARN__} = sub {};
-  die "This should fail";
-});
+eval {
+  $state->do_transaction(sub {
+    my $city = My::City->create(
+      state_id  => $state->id,
+      city_name => 'test-city111'
+    );
+    local $^W;
+    $SIG{__WARN__} = sub {};
+    die "This should fail";
+  });
+};
 ok( ! $state->cities->count, 'Rollback 2 succeeded' );
 
 

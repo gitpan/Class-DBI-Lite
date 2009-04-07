@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.023   2009-04-06
+  - Transactions that failed only warned.  Now they confess.
+
 0.022   2009-04-05
   - Transactions work properly.
   - Added TableInfo and ColumnInfo.

@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.022';
+our $VERSION = '0.023';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -319,13 +319,13 @@ sub do_transaction
     eval { $s->dbi_rollback };
     if( my $rollback_error = $@ )
     {
-      warn join "\n\t",  "Both transaction and rollback failed:",
+      confess join "\n\t",  "Both transaction and rollback failed:",
                             "Transaction error: $trans_error",
                             "Rollback Error: $rollback_error";
     }
     else
     {
-      warn join "\n\t",  "Transaction failed but rollback succeeded:",
+      confess join "\n\t",  "Transaction failed but rollback succeeded:",
                             "Transaction error: $trans_error";
     }# end if()
   }
