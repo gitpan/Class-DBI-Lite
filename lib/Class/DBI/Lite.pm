@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.023';
+our $VERSION = '0.024';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -352,7 +352,7 @@ sub update
   my @fields  = map { "$_ = ?" } grep { $changed->{$_} } sort keys(%$s);
   my @vals    = map { $s->{$_} } grep { $changed->{$_} } sort keys(%$s);
   
-  foreach my $field ( keys(%$s) )
+  foreach my $field ( $s->columns )
   {
     $s->_call_triggers( "before_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
   }# end foreach()
@@ -367,7 +367,7 @@ sub update
   $sth->execute( @vals, $s->id );
   $sth->finish();
   
-  foreach my $field ( keys(%$s) )
+  foreach my $field ( $s->columns )
   {
     $s->_call_triggers( "after_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
   }# end foreach()
@@ -657,6 +657,7 @@ sub add_trigger
   confess "add_trigger called but the handler is not a subref"
     unless ref($handler) eq 'CODE';
   
+  $s->_meta->{triggers}->{$event} ||= [ ];
   my $handlers = $s->_meta->{triggers}->{$event};
   return if grep { $_ eq $handler } @$handlers;
 
