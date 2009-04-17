@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.024';
+our $VERSION = '0.025';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -348,11 +348,12 @@ sub update
   
   $s->_call_triggers( before_update => $s );
   
-  my $changed = $s->{__Changed};
+  my $changed = delete( $s->{__Changed} );
+  $s->{__Changed} = { };
   my @fields  = map { "$_ = ?" } grep { $changed->{$_} } sort keys(%$s);
   my @vals    = map { $s->{$_} } grep { $changed->{$_} } sort keys(%$s);
   
-  foreach my $field ( $s->columns )
+  foreach my $field ( grep { $changed->{$_} } sort keys(%$s) )
   {
     $s->_call_triggers( "before_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
   }# end foreach()
@@ -367,9 +368,10 @@ sub update
   $sth->execute( @vals, $s->id );
   $sth->finish();
   
-  foreach my $field ( $s->columns )
+  foreach my $field ( grep { $changed->{$_} } sort keys(%$s) )
   {
-    $s->_call_triggers( "after_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
+    my $old_val = $changed->{$field}->{oldval};
+    $s->_call_triggers( "after_update_$field", $old_val, $s->{$field} );
   }# end foreach()
   
   $s->{__Changed} = undef;
