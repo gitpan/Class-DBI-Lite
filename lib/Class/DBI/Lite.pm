@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.025';
+our $VERSION = '0.026';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -137,10 +137,43 @@ sub _init_meta
   my $schema = $class->connection->[0];
   
   my $_class_meta = Class::DBI::Lite::EntityMeta->new( $class, $schema, $entity );
+  
+  # If we are re-initializing meta (i.e. changed schema) then remove accessors first:
+  foreach my $col ( eval { $class->columns } )
+  {
+    local $SIG{__WARN__} = sub { };
+    *{"$class\::$col"} = undef;
+  }# end foreach()
+  
   *{"$class\::_meta"} = sub { $_class_meta };
   
   my $pk = ($class->columns('Primary'))[0];
   *{"$class\::primary_column"} = sub { $pk };
+  
+  # Install the column accessors:
+  foreach my $col ( $class->columns )
+  {
+    *{"$class\::$col"} = sub {
+      my $s = shift;
+      
+      exists($s->{$col}) or $s->_flesh_out;
+      if( @_ )
+      {
+        my $newval = shift;
+        no warnings 'uninitialized';
+        return $newval if $newval eq $s->{$col};
+        $s->_call_triggers( "before_set_$col", $s->{$col}, $newval );
+        $s->{__Changed}->{$col} = {
+          oldval => $s->{$col}
+        };
+        return $s->{$col} = $newval;
+      }
+      else
+      {
+        return $s->{$col};
+      }# end if()
+    };
+  }# end foreach()
 }# end _init_meta()
 
 
@@ -761,37 +794,37 @@ sub _flesh_out
 
 
 #==============================================================================
-sub AUTOLOAD
-{
-  my $s = shift;
-  our $AUTOLOAD;
-  my ($name) = $AUTOLOAD =~ m/([^:]+)$/;
-
-  if( my ($col) = grep { $_ eq $name } $s->columns('All') )
-  {
-    exists($s->{$col}) or $s->_flesh_out;
-    if( @_ )
-    {
-      my $newval = shift;
-      no warnings 'uninitialized';
-      return $newval if $newval eq $s->{$name};
-      $s->_call_triggers( "before_set_$name", $s->{$name}, $newval );
-      $s->{__Changed}->{$name} = {
-        oldval => $s->{$name}
-      };
-      return $s->{$name} = $newval;
-    }
-    else
-    {
-      return $s->{$name};
-    }# end if()
-  }
-  else
-  {
-    my $class = ref($s) ? ref($s) : $s;
-    confess "Unknown field or method '$name' for class $class";
-  }# end if()
-}# end AUTOLOAD()
+#sub AUTOLOAD
+#{
+#  my $s = shift;
+#  our $AUTOLOAD;
+#  my ($name) = $AUTOLOAD =~ m/([^:]+)$/;
+#
+#  if( my ($col) = grep { $_ eq $name } $s->columns('All') )
+#  {
+#    exists($s->{$col}) or $s->_flesh_out;
+#    if( @_ )
+#    {
+#      my $newval = shift;
+#      no warnings 'uninitialized';
+#      return $newval if $newval eq $s->{$name};
+#      $s->_call_triggers( "before_set_$name", $s->{$name}, $newval );
+#      $s->{__Changed}->{$name} = {
+#        oldval => $s->{$name}
+#      };
+#      return $s->{$name} = $newval;
+#    }
+#    else
+#    {
+#      return $s->{$name};
+#    }# end if()
+#  }
+#  else
+#  {
+#    my $class = ref($s) ? ref($s) : $s;
+#    confess "Unknown field or method '$name' for class $class";
+#  }# end if()
+#}# end AUTOLOAD()
 
 
 #==============================================================================

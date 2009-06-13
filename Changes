@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.026   2009-06-12
+  - Removed AUTOLOAD accessor/mutators.  Gained a performance increase (oh about 300%).
+
 0.025   2009-04-17
   - Update to after_update_$field triggers to keep them from getting called
     over-and-over.
