@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.026';
+our $VERSION = '0.027';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -327,14 +327,15 @@ sub create
     )
 
   my $sth = $s->db_Main->prepare_cached( $sql );
-  $sth->execute( map { $pre_obj->{$_} } @fields );
+  $sth->execute( @vals );
   my $id = $s->get_last_insert_id
     or confess "ERROR - CANNOT get last insert id";
   $sth->finish();
-  $pre_obj->discard_changes();
+#  $pre_obj->discard_changes();
   
   $pre_obj->{$PK} = $id;
   $pre_obj->_call_triggers( after_create => $pre_obj );
+  $pre_obj->update if $pre_obj->{__Changed};
   $pre_obj;
 }# end create()
 

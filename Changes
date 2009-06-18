@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.027   2009-06-18
+  - create() was calling discard changes after creation, which had the rare side-effect
+    of reverting any values set by before_create triggers.
+
 0.026   2009-06-12
   - Removed AUTOLOAD accessor/mutators.  Gained a performance increase (oh about 300%).
 
