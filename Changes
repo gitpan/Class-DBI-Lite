@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.028   2009-08-22
+  - Promoted _load_class to be a public method (as load_class($class) ).
+
 0.027   2009-06-18
   - create() was calling discard changes after creation, which had the rare side-effect
     of reverting any values set by before_create triggers.

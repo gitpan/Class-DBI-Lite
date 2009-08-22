@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.027';
+our $VERSION = '0.028';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -761,7 +761,8 @@ sub discard_changes
 
 
 #==============================================================================
-sub _load_class
+*_load_class = \&load_class;
+sub load_class
 {
   my (undef, $class) = @_;
   
@@ -771,7 +772,7 @@ sub _load_class
     require $file;
     $class->import;
   }# end unless();
-}# end _load_class()
+}# end load_class()
 
 
 #==============================================================================
