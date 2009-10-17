@@ -12,6 +12,16 @@ use_ok('My::City');
 can_ok( 'My::State',  'cities' );
 can_ok( 'My::City',   'state' );
 
+map { $_->delete } My::State->retrieve_all;
+My::City->find_or_create(
+  state_id  =>
+    My::State->find_or_create(
+      state_name => 'Colorado',
+      state_abbr => 'CO'
+    )->id,
+  city_name => 'Denver',
+);
+
 
 # Object index on both the Class and an Object:
 my @states = My::State->retrieve_all;
@@ -501,23 +511,6 @@ ok(
 }
 
 
-#*************************************************************
-# I believe this section can be ignored, since we don't have
-# that chunk of the AUTOLOAD code that we have to run.
-#*************************************************************
-# Call non-existent method on entity meta:
-#{
-#  ok( ! My::State->_meta->foo );
-#  ok( My::State->_meta->foo('bar') );
-#}
-# Call non-existent method on entity root meta:
-#{
-#  ok( ! My::State->root_meta->foo );
-#  ok( My::State->root_meta->foo('bar') );
-#}
-#*************************************************************
-
-
 # Try to set up a table that does not exist:
 {
   eval {
@@ -534,6 +527,20 @@ ok(
   $iter->reset;
   is( $iter->{idx} => 0, 'reset on an iterator sets its internal index to zero' );
 }
+
+
+# Simple accessor/mutators for the entity meta:
+{
+  is( My::State->_meta->table => 'states' );
+  ok( scalar(My::State->_meta->triggers) );
+  ok( My::State->_meta->has_a_rels );
+  ok( My::State->_meta->has_many_rels );
+}
+
+
+
+
+
 
 
 

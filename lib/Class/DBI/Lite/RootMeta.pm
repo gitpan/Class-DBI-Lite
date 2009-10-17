@@ -30,16 +30,6 @@ sub dsn     { my $s = shift; @_ ? $s->{dsn}     = shift : $s->{dsn} }
 sub schema  { my $s = shift; @_ ? $s->{schema}  = shift : $s->{schema} }
 
 
-#==============================================================================
-#sub AUTOLOAD
-#{
-#  my $s = shift;
-#  our $AUTOLOAD;
-#  my ($key) = $AUTOLOAD =~ m/([^:]+)$/;
-#  
-#  # Universal setter/getter:
-#  @_ ? $s->{$key} = shift : $s->{$key};
-#}# end AUTOLOAD()
 
 1;# return true:
 

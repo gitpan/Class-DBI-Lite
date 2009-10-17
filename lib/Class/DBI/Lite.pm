@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.028';
+our $VERSION = '0.029';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -331,7 +331,6 @@ sub create
   my $id = $s->get_last_insert_id
     or confess "ERROR - CANNOT get last insert id";
   $sth->finish();
-#  $pre_obj->discard_changes();
   
   $pre_obj->{$PK} = $id;
   $pre_obj->_call_triggers( after_create => $pre_obj );
@@ -475,7 +474,8 @@ sub retrieve_from_sql
 {
   my ($s, $sql, @bind) = @_;
   
-  $sql = "SELECT @{[ join ', ', $s->columns('Essential') ]} FROM @{[ $s->table ]}" . ( $sql ? " WHERE $sql " : "" );
+  $sql = "SELECT @{[ join ', ', $s->columns('Essential') ]} " . 
+         "FROM @{[ $s->table ]}" . ( $sql ? " WHERE $sql " : "" );
   SCOPE: {
     my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( @bind );
@@ -629,6 +629,18 @@ sub count_search_where
     return $count;
   };
 }# end count_search_where()
+
+
+#==============================================================================
+sub find_or_create
+{
+  my ($s, %args) = @_;
+  
+  my ($obj) = $s->search( %args );
+  return $obj if $obj;
+  
+  $s->create( %args );
+}# end find_or_create()
 
 
 #==============================================================================
@@ -796,40 +808,6 @@ sub _flesh_out
 
 
 #==============================================================================
-#sub AUTOLOAD
-#{
-#  my $s = shift;
-#  our $AUTOLOAD;
-#  my ($name) = $AUTOLOAD =~ m/([^:]+)$/;
-#
-#  if( my ($col) = grep { $_ eq $name } $s->columns('All') )
-#  {
-#    exists($s->{$col}) or $s->_flesh_out;
-#    if( @_ )
-#    {
-#      my $newval = shift;
-#      no warnings 'uninitialized';
-#      return $newval if $newval eq $s->{$name};
-#      $s->_call_triggers( "before_set_$name", $s->{$name}, $newval );
-#      $s->{__Changed}->{$name} = {
-#        oldval => $s->{$name}
-#      };
-#      return $s->{$name} = $newval;
-#    }
-#    else
-#    {
-#      return $s->{$name};
-#    }# end if()
-#  }
-#  else
-#  {
-#    my $class = ref($s) ? ref($s) : $s;
-#    confess "Unknown field or method '$name' for class $class";
-#  }# end if()
-#}# end AUTOLOAD()
-
-
-#==============================================================================
 sub DESTROY
 {
   my $s = shift;
@@ -872,10 +850,10 @@ Create some database tables:
     artist_name varchar(100) not null
   );
   
-  create table cds (
-    cd_id integer primary key autoincrement,
+  create table albums (
+    album_id integer primary key autoincrement,
     artist_id integer not null,
-    cd_name varchar(100) not null
+    album_name varchar(100) not null
   );
 
 
@@ -895,19 +873,19 @@ Create some database tables:
   __PACKAGE__->set_up_table('artists');
   
   __PACKAGE__->has_many(
-    cds =>
-      'My::CD' =>
+    albums =>
+      'My::Album' =>
         'artist_id'
   );
   
   1;# return true:
 
 
-  package My::CD;
+  package My::Album;
   
   use base 'My::Model';
   
-  __PACKAGE__->set_up_table('cds');
+  __PACKAGE__->set_up_table('albums');
   
   __PACKAGE__->has_a(
     artist =>
@@ -923,18 +901,18 @@ Then, in your script someplace:
   
   my $artist = My::Artist->retrieve( 123 );
   
-  foreach my $cd ( $artist->cds )
+  foreach my $album ( $artist->albums )
   {
     ...
   }# end foreach()
   
-  my $cd = $artist->add_to_cds( cd_name => "Attak" );
+  my $album = $artist->add_to_albums( album_name => "Attak" );
   
-  print $cd->cd_name;
-  $cd->cd_name("New Name");
-  $cd->update();
+  print $album->album_name;
+  $album->album_name("New Name");
+  $album->update();
   
-  # Delete the artist and all of its CDs:
+  # Delete the artist and all of its Albums:
   $artist->delete;
 
 =head1 DESCRIPTION

@@ -43,4 +43,31 @@ my $expected = bless( {
 
 is_deeply( My::State->get_table_info, $expected );
 
+is_deeply( [My::State->get_table_info->columns] => $expected->{columns} );
+
+is_deeply(
+  My::State->get_table_info->column('state_name') => 
+  bless( {
+    'is_pk'         => 0,
+    'length'        => '50',
+    'default_value' => undef,
+    'name'          => 'state_name',
+    'type'          => 'varchar',
+    'is_nullable'   => 1,
+    'key'           => undef
+  }, 'Class::DBI::Lite::ColumnInfo' )
+);
+
+is( My::State->get_table_info->table => 'states' );
+
+
+
+ok( My::State->get_table_info->column('state_name')->null );
+is(
+  My::State->get_table_info->column('state_name')->null =>
+  My::State->get_table_info->column('state_name')->is_nullable
+);
+ok( ! My::State->get_table_info->column('state_name')->default );
+
+
 
