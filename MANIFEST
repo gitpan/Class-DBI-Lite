@@ -20,6 +20,7 @@ t/040-transactions/010-basic.t
 t/050-table-info/010-basic.t
 t/060-ad_hoc/010-basic.t
 t/070-root_meta/010-basic.t
+t/080-test-fixtures/010-basic.t
 t/testdb
 t/lib/My/City.pm
 t/lib/My/Model.pm
@@ -35,5 +36,6 @@ lib/Class/DBI/Lite/EntityMeta.pm
 lib/Class/DBI/Lite/TableInfo.pm
 lib/Class/DBI/Lite/ColumnInfo.pm
 lib/Class/DBI/Lite/AdHocEntity.pm
+lib/Class/DBI/Lite/Fixture.pm
 
 META.yml                                 Module meta-data (added by MakeMaker)

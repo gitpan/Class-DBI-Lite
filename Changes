@@ -1,5 +1,14 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.030   2009-10-17
+  - Added Class::DBI::Lite::Fixture for easy test fixtures.
+  - Added tests for test fixtures.
+
+0.029   2009-10-16
+  - Added "ad hoc" queries.
+  - Test coverage much better now.
+  - Updated Artists/CDs example to Artists/Albums.
+
 0.028   2009-08-22
   - Promoted _load_class to be a public method (as load_class($class) ).
 
