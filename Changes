@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.031   2009-10-22
+  - MANIFEST was missing t/lib/My/Fixtures.pm
+
 0.030   2009-10-17
   - Added Class::DBI::Lite::Fixture for easy test fixtures.
   - Added tests for test fixtures.
