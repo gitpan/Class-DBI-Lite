@@ -90,6 +90,15 @@ sub get_table_info
     {
       ($length) = $res->{type} =~ m/\((\d+)\)/;
     }# end if()
+    
+    # If it's an enum, we want to provide a list of possible values:
+    my %enum_args = ( );
+    if( lc($type) eq 'enum' )
+    {
+      my @vals = $res->{type} =~ m/\(('([^']+',?)\)/g;
+      $enum_args{enum_values} = \@vals;
+    }#end if()
+    
     $info->add_column(
       name          => $res->{field},
       type          => lc($type),
@@ -98,6 +107,7 @@ sub get_table_info
       is_nullable   => $res->{null} eq 'NO' ? 0 : 1,
       default_value => $res->{default},
       key           => $key_types{ $res->{key} },
+      %enum_args,
     );
   }# end while()
   $cur->finish;

@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.032   2009-10-28
+  - New Feature: "enum" column values are now parsed and added to
+    the "get_table_info->column('columnName')->enum_values" property as an arrayref.
+
 0.031   2009-10-22
   - MANIFEST was missing t/lib/My/Fixtures.pm
 
