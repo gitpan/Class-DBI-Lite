@@ -95,7 +95,7 @@ sub get_table_info
     my %enum_args = ( );
     if( lc($type) eq 'enum' )
     {
-      my @vals = $res->{type} =~ m/\(('([^']+',?)\)/g;
+      my @vals = $res->{type} =~ m/\(('([^']+'),?)\)/g;
       $enum_args{enum_values} = \@vals;
     }#end if()
     

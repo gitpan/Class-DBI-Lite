@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+
+0.033   2009-10-28
+  - Fixed broken regexp from last update.
+
 0.032   2009-10-28
   - New Feature: "enum" column values are now parsed and added to
     the "get_table_info->column('columnName')->enum_values" property as an arrayref.
