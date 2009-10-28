@@ -95,7 +95,14 @@ sub get_table_info
     my %enum_args = ( );
     if( lc($type) eq 'enum' )
     {
-      my @vals = $res->{type} =~ m/\(('([^']+'),?)\)/g;
+      my $val = "$type";
+      $val =~ s/^enum\(//;
+      $val =~ s/\)$//;
+      my @vals = grep { length($_) } map {
+        $_ =~ s/^'//;
+        $_ =~ s/'$//;
+        $_;
+      } split /,\s*/, $val;
       $enum_args{enum_values} = \@vals;
     }#end if()
     

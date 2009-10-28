@@ -1,5 +1,7 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+0.034   2009-10-28
+  - Enum vals NOW work for mysql.
 
 0.033   2009-10-28
   - Fixed broken regexp from last update.
