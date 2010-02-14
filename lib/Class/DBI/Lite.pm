@@ -15,7 +15,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '0.034';
+our $VERSION = '1.000';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -149,9 +149,10 @@ sub _init_meta
   
   my $pk = ($class->columns('Primary'))[0];
   *{"$class\::primary_column"} = sub { $pk };
+  *{"$class\::$pk"} = sub { $_[0]->{$pk} };
   
   # Install the column accessors:
-  foreach my $col ( $class->columns )
+  foreach my $col ( grep { $_ ne $pk } $class->columns )
   {
     *{"$class\::$col"} = sub {
       my $s = shift;
@@ -833,7 +834,6 @@ sub DESTROY
 
 1;# return true:
 
-__END__
 
 =pod
 
@@ -843,95 +843,734 @@ Class::DBI::Lite - Lightweight ORM for Perl
 
 =head1 SYNOPSIS
 
-Create some database tables:
+Please take a look at L<Class::DBI::Lite::Tutorial> for an introduction to using this module.
 
-  create table artists (
-    artist_id integer primary key autoincrement,
-    artist_name varchar(100) not null
-  );
-  
-  create table albums (
-    album_id integer primary key autoincrement,
-    artist_id integer not null,
-    album_name varchar(100) not null
-  );
+=head1 DESCRIPTION
 
+C<Class::DBI::Lite> offers a simple way to deal with databases in an object-oriented way.
+
+One class (the B<Model> class) defines your connection to the database (eg: connectionstring, username and password)
+and your other classes define interaction with one table each (your B<entity> classes).
+
+The Entity classes subclass the Model class and automatically inherit its connection.
+
+C<Class::DBI::Lite> relies heavily on L<Ima::DBI>, L<SQL::Abstract> and L<Scalar::Util>.
+
+C<Class::DBI::Lite> does not leak memory and is well-suited for use within mod_perl, Fast CGI, CGI
+and anywhere else you might need it.
+
+=head1 BACKGROUND
+
+I used L<Class::DBI> for a few years, a few years ago, on a very large project, under mod_perl.
+This was back in 2002-2003 when the ORM (Object-Relational Mapper) scene was still fairly new.
+
+While it saved me a great deal of typing, I was amazed at the complexity of C<Class::DBI>'s internal code.
+After some time I found myself spending more effort working around problems caused by C<Class::DBI>
+than I could stand.
+
+Many people encountered the same problems I encountered (transactions, database connection sharing issues, performance, etc)
+and they all went and began writing L<DBIx::Class>.
+
+L<DBIx::Class> went in a direction away from the database while I wanted to get closer to
+the database.  As close as I could possibly get without wasting time.  I also wanted
+to keep some simple logic in my Entity classes (those classes that represent individual tables).
+I didn't want my ORM to do too much magic, think too much or do anything not immediately apparent.
+I didn't care about many-to-many relationships or automatic SQL join clauses.  Vendor-specific
+LIMIT expressions simply were not a concern of mine.
+
+So...I reimplemented (most) of the C<Class::DBI> interface in a way that I preferred.  I left out some
+things that didn't matter to me (eg: many-to-many relationships, column groups) and added some things
+I needed frequently (eg: transactions, single-field triggers, mod_perl compatibility).
+
+=head1 PHILOSPHY
+
+C<Class::DBI::Lite> is intended to minimize the boiler-plate code typically written
+in most applications.  It is not intended to completely insulate developers from
+interacting with the database directly.
+
+C<Class::DBI::Lite> is not a way to avoid I<learning> SQL - it is a way to avoid I<writing>
+SQL.
+
+=head1 PUBLIC PROPERTIES
+
+=head2 connection( $dsn, $username, $password )
+
+Sets the DSN for your classes.
 
   package My::Model;
   
-  use base 'Class::DBI::Lite::mysql'; # Or ::SQLite, etc
+  use base 'Class::DBI::Lite::mysql';
   
-  __PACKAGE__->connection( 'DBI:mysql:dbname:localhost', 'user', 'pass' );
-  
-  1;# return true:
+  __PACKAGE__->connection('DBI:mysql:dbname:localhost', 'username', 'password' );
 
+=head2 db_Main
+
+Returns the active database handle in use by the class.
+
+Example:
+
+  my $dbh = My::Artist->db_Main;
+  my $sth = $dbh->prepare("SELECT * FROM artists");
+  $sth->execute();
+  ...
+
+=head2 table
+
+Returns the name of the table that the class is assigned to.
+
+Example:
+
+  print My::Artist->table; # 'artists'
+
+=head2 columns
+
+Returns a list of field names in the table that the class represents.
+
+Given the following table:
+
+  create table artists (
+    artist_id   integer unsigned not null primary key auto_increment,
+    name        varchar(100) not null,
+  ) engine=innodb charset=utf8;
+
+We get this:
+
+  print join ", ", My::Artist->columns;
+  # artist_id, name
+
+=head1 STATIC METHODS
+
+=head2 create( %info )
+
+Creates a new object and returns it.
+
+Example:
+
+  my $artist = My::Artist->create( name => 'Bob Marley' );
+
+=head2 find_or_create( %info )
+
+Using C<%info> a search will be performed.  If a matching result is found it is returned.  Otherwise
+a new record will be created using C<%info> as arguments.
+
+Example:
+
+  my $artist = My::Artist->find_or_create( name => 'Bob Marley' );
+
+=head2 retrieve( $id )
+
+Given the id of a record in the database, returns that object.
+
+Example:
+
+  my $artist = My::Artist->retrieve( 1 );
+
+Same as the following SQL:
+
+  SELECT *
+  FROM artists
+  WHERE artist_id = 1
+
+=head2 retrieve_all( )
+
+Returns all objects in the database table.
+
+Example:
+
+  my @artists = My::Artist->retrieve_all;
+
+Same as the following SQL:
+
+  SELECT * FROM artists
+
+B<NOTE:> If you want to sort all of the records or do paging, use C<search_where>
+like this:
+
+  my @artists = My::Artist->search_where({ 1 => 1}, {order_by => 'name DESC'});
+
+Same as the following SQL:
+
+  SELECT *
+  FROM artists
+  WHERE 1 = 1
+  ORDER BY name DESC
+
+That "C<WHERE 1 = 1>" is a funny way of telling the database "give them all to me".
+
+=head2 has_many( ... )
+
+Declares a "one-to-many" relationship between this two classes.
+
+  package My::Artist;
+  ...
+  __PACKAGE__->has_many(
+    albums  =>
+      'My::Album' =>
+        'album_id'
+  );
+
+The syntax is:
+
+  __PACKAGE__->has_many(
+    $what_they_are_called =>
+      $the_class_name =>
+        $their_field_name_that_contains_my_primary_column's_value
+  );
+
+The result is this:
+
+  my @albums = $artist->albums;
+  $artist->add_to_albums( name => 'Legend' );
+
+That's the same as:
+
+  my @albums = My::Album->search(
+    artist_id => $artist->id
+  );
+
+=head2 has_a( ... )
+
+Declares a "one-to-one" relationship between two classes.
+
+  package My::Album;
+  ...
+  __PACKAGE__->has_a(
+    artist  =>
+      'My::Artist'  =>
+        'artist_id'
+  );
+
+The syntax is:
+
+  __PACKAGE__->has_a(
+    $what_i_will_call_it  =>
+      $the_class_name =>
+        $my_field_name_with_the_other_class's_primary_column's_value_in_it
+  );
+
+The result is this:
+
+  my $artist = $album->artist;
+
+That's the same as:
+
+  my $artist = My::Artist->retrieve( $album->artist_id );
+
+=head2 construct( $hashref )
+
+Blesses the object into the given class, even if we don't have all the information
+about the object (as long as we get its primary field value).
+
+Example:
+
+  for( 1..5 ) {
+    my $artist = My::Artist->construct({ artist_id => $_ });
+    
+    # name is automatically "fleshed out":
+    print $artist->name;
+  }
+
+=head2 eval { do_transaction( \&subref ) }
+
+Executes a block of code within the context of a transaction.
+
+Example:
+
+  # Safely update the name of every album:
+  eval {
+    My::Artist->do_transaction( sub {
+    
+      # Your transaction code goes here:
+      my $artist = My::Artist->retrieve( 1 );
+      foreach my $album ( $artist->albums ) {
+        $album->name( $artist->name . ': ' . $album->name );
+        $album->update;
+      }
+    });
+  };
+  
+  if( $@ ) {
+    # There was an error:
+    die $@;
+  }
+  else {
+    # Everything was OK:
+  }
+
+=head2 search( %args )
+
+Returns any objects that match all elements in C<%args>.
+
+Example:
+
+  my @artists = My::Artist->search( name => 'Bob Marley' );
+  
+  my $artist_iterator = My::Artist->search( name => 'Bob Marley' );
+
+Returns an array in list context or a L<Class::DBI::Lite::Iterator> in scalar context.
+
+=head2 search_like( %args )
+
+Returns any objects that match all elements in C<%args> using the C<LIKE> operator.
+
+Example:
+
+  my @artists = My::Artist->search_like( name => 'Bob%' );
+  
+  my $artist_iterator = My::Artist->search_like( name => 'Bob%' );
+
+Returns an array in list context or a L<Class::DBI::Lite::Iterator> in scalar context.
+
+Both examples would execute the following SQL:
+
+  SELECT * FROM artists WHERE name LIKE 'Bob%'
+
+=head2 search_where( \%args, [\%sort_and_limit] )
+
+Returns any objects that match all elements in C<%args> as specified by C<%sort_and_limit>.
+
+Returns an array in list context or a L<Class::DBI::Lite::Iterator> in scalar context.
+
+Example 1:
+
+  my @artists = My::Artist->search_where({
+    name => 'Bob Marley'
+  });
+
+Same as this SQL:
+
+  SELECT *
+  FROM artists
+  WHERE name = 'Bob Marley'
+
+Example 2:
+
+  my @artists = My::Artist->search_where({
+    name => 'Bob Marley'
+  }, {
+    order_by => 'name ASC LIMIT 0, 10'
+  });
+
+Same as this SQL:
+
+  SELECT *
+  FROM artists
+  WHERE name = 'Bob Marley'
+  ORDER BY name
+  LIMIT 0, 10
+
+Example 3:
+
+  my @artists = My::Artist->search_where([
+    name => { '!=' => 'Bob Marley' },
+    genre => 'Rock',
+  ]);
+
+Same as this SQL:
+
+  SELECT *
+  FROM artists
+  WHERE name != 'Bob Marley'
+  OR genre = 'Rock'
+
+Because C<search_where> uses L<SQL::Abstract> to generate the SQL for the database,
+you can look there for more detailed examples.
+
+=head2 count_search( %args )
+
+Returns the number of records that match C<%args>.
+
+Example:
+
+  my $count = My::Album->count_search( name => 'Greatest Hits' );
+
+=head2 count_search_like( %args )
+
+Returns the number of records that match C<%args> using the C<LIKE> operator.
+
+Example:
+
+  my $count = My::Artist->count_search_like(
+    name  => 'Bob%'
+  );
+
+=head2 count_search_where( \%args )
+
+Returns the number of records that match C<\%args>.
+
+Examples:
+
+  my $count = My::Album->count_search_like({
+    name  => { LIKE => 'Best Of%' }
+  });
+  
+  my $count = My::Album->count_search_like({
+    genre => { '!=' => 'Country/Western' }
+  });
+
+=head2 sth_to_objects( $sth )
+
+Takes a statement handle that is ready to fetch records from.  Returns the results
+as objects.
+
+Example:
+
+  my $sth = My::Artist->db_Main->prepare("SELECT * FROM artists");
+  $sth->execute();
+  my @artists = My::Artist->sth_to_objects( $sth );
+
+This method is very useful for when your SQL query is too complicated for C<search_where()>.
+
+=head2 add_trigger( $event => \&sub )
+
+Specifies a callback to be executed when a specific event happens.
+
+Examples:
+
+  package My::Artist;
+  ...
+  __PACKAGE__->add_trigger( after_create => sub {
+    my ($self) = @_;
+    
+    warn "You just created a new artist: " . $self->name;
+  });
+
+There are 6 main trigger points at the class level and 2 trigger points for
+every field:
+
+=head3 Class Triggers
+
+=head4 before_create( $self )
+
+Called just before a new record is created.  C<$self> is a hashref blessed into
+the object's class and contains only the values that were provided for its creation.
+
+So, given this trigger:
+
+  package My::Album;
+  ...
+  __PACKAGE__->add_trigger( before_create => sub {
+    my ($self) = @_;
+    
+    warn "ID = '$self->{album_id}', Name = '$self->{name}";
+  });
+
+If we ran this code:
+
+  my $album = My::Album->create( name => 'Legend' );
+
+We would see this output:
+
+  ID = '', Name = 'Legend'
+
+Because the value for C<album_id> has not been assigned by the database it does
+not yet have a value.
+
+=head4 after_create( $self )
+
+Called just after a new record is created.  C<$self> is the new object itself.
+
+So given this trigger:
+
+  package My::Album;
+  ...
+  __PACKAGE__->add_trigger( after_create => sub {
+    my ($self) = @_;
+    
+    warn "ID = '$self->{album_id}', Name = '$self->{name}";
+  });
+
+If we ran this code:
+
+  my $album = My::Album->create( name => 'Legend' );
+
+We would see this output:
+
+  ID = '1', Name = 'Legend'
+
+=head4 before_update( $self )
+
+Called just before changes are saved to the database.  C<$self> is the object
+to be updated.
+
+Example:
+
+  package My::Album;
+  ...
+  __PACKAGE__->add_trigger( before_update => sub {
+    my ($self) = @_;
+    
+    warn "About to update album " . $self->name;
+  });
+
+=head4 after_update( $self )
+
+Called just after changes are saved to the database.  C<$self> is the object
+that was updated.
+
+Example:
+
+  package My::Album;
+  ...
+  __PACKAGE__->add_trigger( after_update => sub {
+    my ($self) = @_;
+    
+    warn "Finished updating album " . $self->name;
+  });
+
+B<NOTE:> If you make changes to C<$self> from within an C<after_update> you could
+enter into a recursive loop in which an update is made that causes an update to
+be made which causes an update to be made which causes an update to be made which causes an update to be made which
+causes an update to be made which causes an update to be made which causes an update to be made which
+causes an update to be made which causes an update to be made which causes an update to be made which
+causes an update to be made which causes an update to be made which causes an update to be made which
+causes an update to be made which causes an update to be made which causes an update to be made which
+causes an update to be made which causes an update to be made which causes an update to be made which...and so on.
+
+B<DO NOT DO THIS>:
+
+  package My::Album;
+  ...
+  __PACKAGE__->add_trigger( after_update => sub {
+    my ($self) = @_;
+    
+    # This will cause problems:
+    warn "Making a recursive problem:";
+    $self->name( 'Hello ' . rand() );
+    $self->update;
+  });
+
+=head4 before_delete( $self )
+
+Called just before something is deleted.
+
+Example:
+
+  package My::Album;
+  ...
+  __PACKAGE__->add_trigger( before_delete => sub {
+    my ($self) = @_;
+    
+    warn "About to delete " . $self->name;
+  });
+
+=head4 after_delete( {$primary_field => $id} )
+
+Called just after something is deleted.
+
+B<NOTE:> Since the object itself is deleted from the database B<and> memory, all
+that is left is the id of the original object.
+
+So, given this trigger...
+
+  package My::Album;
+  ...
+  use Data::Dumper;
+  __PACKAGE__->add_trigger( after_delete => sub {
+    my ($obj) = @_;
+    
+    warn "Deleted an album: " . Dumper($obj);
+  });
+
+...we might see the following output:
+
+  Deleted an album: $VAR1 = {
+    album_id => 123
+  };
+
+=head3 Field Triggers
+
+=head4 before_update_<field>( $self, $old_value, $new_value )
+
+Called just B<before> a field's value is updated.
+
+So, given the following trigger...
+
+  package My::Album;
+  ...
+  __PACKAGE__->add_trigger( before_update_name => sub {
+    my ($self, $old_value, $new_value) = @_;
+    
+    warn "About to change name from '$old_value' to '$new_value'";
+  });
+
+...called with the following code...
+
+  my $artist = My::Artist->create( name => 'Bob Marley' );
+  my $album = $artist->add_to_albums( name => 'Legend' );
+  
+  # Now change the name:
+  $album->name( 'Greatest Hits' );
+  $album->update; # <--- the trigger is called right here.
+
+...we would see the following output:
+
+  About to change the name from 'Legend' to 'Greatest Hits'
+
+=head4 after_update_<field>( $self, $old_value, $new_value )
+
+Called just B<after> a field's value is updated.
+
+So, given the following trigger...
+
+  package My::Album;
+  ...
+  __PACKAGE__->add_trigger( after_update_name => sub {
+    my ($self, $old_value, $new_value) = @_;
+    
+    warn "Changed name from '$old_value' to '$new_value'";
+  });
+
+...called with the following code...
+
+  my $artist = My::Artist->create( name => 'Bob Marley' );
+  my $album = $artist->add_to_albums( name => 'Legend' );
+  
+  # Now change the name:
+  $album->name( 'Greatest Hits' );
+  $album->update; # <--- the trigger is called right here.
+
+...we would see the following output:
+
+  Changed the name from 'Legend' to 'Greatest Hits'
+
+=head2 find_column( $name )
+
+Returns the name of the column, if the class has that column.
+
+Example:
+
+  if( My::Artist->find_column('name') ) {
+    warn "Artists have names!";
+  }
+
+=head2 get_table_info( )
+
+Returns a L<Class::DBI::Lite::TableInfo> object fully-populated with all of the
+information available about the table represented by a class.
+
+So, given the following table structure:
+
+  create table artists (
+    artist_id   integer unsigned not null primary key auto_increment,
+    name        varchar(100) not null
+  ) engine=innodb charset=utf8;
+
+Here is the example:
+
+  my $info = My::Artist->get_table_info();
+  
+  my $column = $info->column('name');
+  warn $column->name;           # 'name'
+  warn $column->type;           # varchar
+  warn $column->length;         # 100
+  warn $column->is_pk;          # '0' (because it's not the Primary Key)
+  warn $column->is_nullable;    # 0 (because `not null` was specified on the table)
+  warn $column->default_value;  # undef because no default value was specified
+  warn $column->key;            # undef because not UNIQUE or PRIMARY KEY
+  
+  foreach my $column ( $info->columns ) {
+    warn $column->name;
+    warn $column->type;
+    warn $column->length;
+    warn $column->is_pk;
+    ...
+  }
+
+=head1 OBJECT METHODS
+
+=head2 Field Methods
+
+For each of the fields in your table, an "accessor" method will be created.
+
+So, given the following table structure:
+
+  create table artists (
+    artist_id   integer unsigned not null primary key auto_increment,
+    name        varchar(100) not null,
+  ) engine=innodb charset=utf8;
+
+And the following class:
 
   package My::Artist;
   
+  use strict;
+  use warnings 'all';
   use base 'My::Model';
   
   __PACKAGE__->set_up_table('artists');
   
-  __PACKAGE__->has_many(
-    albums =>
-      'My::Album' =>
-        'artist_id'
-  );
-  
   1;# return true:
 
-
-  package My::Album;
-  
-  use base 'My::Model';
-  
-  __PACKAGE__->set_up_table('albums');
-  
-  __PACKAGE__->has_a(
-    artist =>
-      'My::Artist' =>
-        'artist_id'
-  );
-  
-  1;# return true:
-
-Then, in your script someplace:
-
-  use My::Artist;
-  
-  my $artist = My::Artist->retrieve( 123 );
-  
-  foreach my $album ( $artist->albums )
-  {
-    ...
-  }# end foreach()
-  
-  my $album = $artist->add_to_albums( album_name => "Attak" );
-  
-  print $album->album_name;
-  $album->album_name("New Name");
-  $album->update();
-  
-  # Delete the artist and all of its Albums:
-  $artist->delete;
-
-=head1 DESCRIPTION
-
-Sometimes Class::DBI is too crufty, and DBIx::Class is too much.
-
-Enter Class::DBI::Lite.
-
-=head1 TODO
+The C<My::Artist> class would have the following methods created:
 
 =over 4
 
-=item * Complete tests
+=item * artist_id
 
-=item * Examples
+Returns the value of the C<artist_id> field the database.  This value is read-only
+and cannot be changed.
 
-=item * Documentation
+=item * name
+
+Gets or sets the value of the C<name> field the database.
+
+To get the value of the C<name> field, do this:
+
+  my $value = $artist->name;
+
+To set the value of the C<name> field, do this:
+
+  $artist->name( "New Name" );
+
+To save those changes to the database you must call C<update>:
+
+  $artist->update;
 
 =back
+
+=head2 id
+
+Always returns the value of the object's primary column.
+
+Example:
+
+  $album->id == $album->album_id;
+  $artist->id == $artist->artist_id;
+
+=head2 update()
+
+Causes any changes to an object to be saved to the database.
+
+Example:
+
+  $artist->name( 'Big Bob' );
+  $artist->update;
+
+=head2 delete()
+
+Deletes the object from the database.  The object is then re-blessed into the special
+class C<Class::DBI::Object::That::Has::Been::Deleted>.
+
+Example:
+
+  $album->delete;
+
+=head2 discard_changes()
+
+Causes any changes made to the object that have not been stored in the database
+to be forgotten.
+
+Example:
+
+  my $artist = My::Artist->create( name => 'Bob Marley' );
+  $artist->name( 'Big Bob' );
+  
+  $artist->discard_changes;
+
+=head1 SEE ALSO
+
+L<Class::DBI::Lite::Tutorial>
 
 =head1 AUTHOR
 
@@ -939,7 +1578,7 @@ Copyright John Drago <jdrago_999@yahoo.com>.  All rights reserved.
 
 =head1 LICENSE
 
-This software is Free software and may be used and redistributed under the
+This software is B<Free> software and may be used and redistributed under the
 same terms as perl itself.
 
 =cut
