@@ -1,5 +1,15 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.001   2010-2-14
+  - Didn't update 'Changes' file in 1.000, so had to re-upload it and change version.
+
+1.000   2010-02-14
+  - Going 1.0!
+  - Added lots of documentation and examples.
+  - Test coverage is quite high.
+  - Public interface is frozen.
+  - Used in production for over a year on websites getting millions of hits.
+
 0.034   2009-10-28
   - Enum vals NOW work for mysql.
 
