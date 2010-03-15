@@ -1,6 +1,11 @@
 Revision history for Perl extension Class::DBI::Lite.
 
-1.001   2010-2-14
+1.002   2010-03-13
+  - create(...) now properly inserts the new object into the %Live_Objects cache.
+  - Experimental NoSQL caching extensions added.
+  - Caching options include InMemory and Memcached.
+
+1.001   2010-02-14
   - Didn't update 'Changes' file in 1.000, so had to re-upload it and change version.
 
 1.000   2010-02-14

@@ -7,8 +7,13 @@ use lib qw( t/lib lib );
 
 use_ok('My::Model');
 use_ok('My::User');
+use_ok('My::City');
+use_ok('My::State');
 
-$_->delete foreach My::User->retrieve_all;
+map { $_->delete } My::City->retrieve_all;
+map { $_->delete } My::State->retrieve_all;
+map { $_->delete } My::User->retrieve_all;
+
 My::User->create(
   user_first_name => 'firstname',
   user_last_name  => 'lastname',
@@ -18,10 +23,9 @@ My::User->create(
 
 use_ok('My::State');
 
-ok( My::State->retrieve_all->count );
+ok( My::State->retrieve_all->count == 0 );
 
 my ($state) = My::State->retrieve_all;
-$state->cities;
-use_ok('My::City');
+is( $state => undef );
 
 

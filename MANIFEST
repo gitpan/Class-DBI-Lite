@@ -9,6 +9,9 @@ inc/Module/Install/Win32.pm
 inc/Module/Install/WriteAll.pm
 lib/Class/DBI/Lite.pm
 lib/Class/DBI/Lite/AdHocEntity.pm
+lib/Class/DBI/Lite/CacheManager.pm
+lib/Class/DBI/Lite/CacheManager/InMemory.pm
+lib/Class/DBI/Lite/CacheManager/Memcached.pm
 lib/Class/DBI/Lite/ColumnInfo.pm
 lib/Class/DBI/Lite/EntityMeta.pm
 lib/Class/DBI/Lite/Fixture.pm
@@ -35,6 +38,8 @@ t/050-table-info/010-basic.t
 t/060-ad_hoc/010-basic.t
 t/070-root_meta/010-basic.t
 t/080-test-fixtures/010-basic.t
+t/090-nosql/010-inmemory.t
+t/090-nosql/020-memcached.t
 t/lib/My/City.pm
 t/lib/My/Fixtures.pm
 t/lib/My/Model.pm

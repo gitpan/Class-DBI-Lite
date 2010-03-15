@@ -19,6 +19,7 @@ requires 'Ima::DBI'                 => 0;
 requires 'DBIx::ContextualFetch'    => 0;
 requires 'SQL::Abstract'            => 0;
 requires 'SQL::Abstract::Limit'     => 0;
+recommends  'Cache::Memcached'      => 1.27;
 
 tests_recursive();
 WriteAll();

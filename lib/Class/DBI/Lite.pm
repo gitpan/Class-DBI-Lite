@@ -10,12 +10,13 @@ use SQL::Abstract::Limit;
 use Class::DBI::Lite::Iterator;
 use Class::DBI::Lite::RootMeta;
 use Class::DBI::Lite::EntityMeta;
+use Digest::MD5 'md5_hex';
 use overload 
   '""'      => sub { eval { $_[0]->id } },
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.001';
+our $VERSION = '1.002';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -87,7 +88,7 @@ sub construct
   my ($s, $data) = @_;
   
   my $class = ref($s) ? ref($s) : $s;
-  
+
   my $PK = $class->primary_column;
   my $key = join ':', grep { defined($_) } ( $s->root_meta->{schema}, $class, $data->{ $PK } );
   return $Live_Objects{$key} if $Live_Objects{$key};
@@ -125,6 +126,8 @@ sub dsn    { $_[0]->root_meta->{dsn} }
 sub table  { $_[0]->_meta->{table} }
 sub triggers { @{ $_[0]->_meta->{triggers}->{ $_[1] } } }
 sub _meta { }
+sub set_cache { my ($class, $cache) = @_; $class->_meta->{cache} = $cache }
+sub cache { shift->_meta->{cache} }
 
 
 #==============================================================================
@@ -282,9 +285,16 @@ sub retrieve
 {
   my ($s, $id) = @_;
   
+  if( my $data = $s->_call_triggers( before_retrieve => $id ) )
+  {
+    return $s->construct( $data );
+  }# end if()
+  
   my ($obj) = $s->retrieve_from_sql(<<"", $id);
     @{[ $s->primary_column ]} = ?
 
+  return unless $obj;
+  $obj->_call_triggers( after_retrieve => $obj );
   return $obj;
 }# end retrieve()
 
@@ -317,7 +327,7 @@ sub create
   $data = { %$pre_obj  };
   
   my @fields  = map { $_ } sort grep { exists($data->{$_}) } keys(%create_fields);
-  my @vals    = map { $data->{$_} } sort grep { exists($data->{$_}) } keys(%create_fields);
+  my @vals    = map { $data->{$_} } sort grep { exists($pre_obj->{$_}) } keys(%create_fields);
   
   my $sql = <<"";
     INSERT INTO @{[ $s->table ]} (
@@ -333,10 +343,15 @@ sub create
     or confess "ERROR - CANNOT get last insert id";
   $sth->finish();
   
-  $pre_obj->{$PK} = $id;
-  $pre_obj->_call_triggers( after_create => $pre_obj );
-  $pre_obj->update if $pre_obj->{__Changed};
-  $pre_obj;
+  my $new_obj = $s->construct( {
+    %$pre_obj,
+    $PK => $id,
+  } );
+  $pre_obj->discard_changes;
+
+  $new_obj->_call_triggers( after_create => $new_obj );
+  $new_obj->update if $new_obj->{__Changed};
+  $new_obj;
 }# end create()
 
 
@@ -515,15 +530,42 @@ sub sth_to_objects
 sub search
 {
   my ($s, %args) = @_;
+
+  my @cached = grep { $_ } $s->_call_triggers( before_search => \%args );
+  if( @cached )
+  {
+    return $s->_prepare_result( @cached );
+  }# end if()
   
   my $sql = "";
-
   my @sql_parts = map { "$_ = ?" } sort keys(%args);
   my @sql_vals  = map { $args{$_} } sort keys(%args);
   $sql .= join ' AND ', @sql_parts;
-  
-  return $s->retrieve_from_sql( $sql, @sql_vals );
+
+  my @vals = $s->retrieve_from_sql( $sql, @sql_vals );
+  $s->_call_triggers( after_search => ( \%args, \@vals ) );
+  return $s->_prepare_result( @vals );
 }# end search()
+
+
+sub _prepare_result
+{
+  my ($class, @vals) = @_;
+  if( wantarray )
+  {
+    my @out = map { $class->construct( $_ ) } @vals;
+    return @out;
+  }
+  else
+  {
+    my $iter = Class::DBI::Lite::Iterator->new(
+      [
+        map { $class->construct( $_ ) } @vals
+      ]
+    );
+    return $iter;
+  }# end if()
+}# end _prepare_result()
 
 
 #==============================================================================
@@ -637,10 +679,12 @@ sub find_or_create
 {
   my ($s, %args) = @_;
   
-  my ($obj) = $s->search( %args );
-  return $obj if $obj;
+  if( my ($obj) = $s->search( %args ) )
+  {
+    return $obj;
+  }# end if()
   
-  $s->create( %args );
+  return $s->create( %args );
 }# end find_or_create()
 
 
@@ -718,17 +762,32 @@ sub add_trigger
 sub _call_triggers
 {
   my ($s, $event) = @_;
-  
+
   $s->_meta->{triggers}->{ $event } ||= [ ];
   return unless my @handlers = @{ $s->_meta->{triggers}->{ $event } };
   shift;shift;
+  my @return_values;
+  my $return_value;
   foreach my $handler ( @handlers )
   {
-    eval {
-      $handler->( $s, @_ );
-      1;
-    } or confess $@;
+    if( wantarray )
+    {
+      eval {
+        my @val = $handler->( $s, @_ );
+        push @return_values, @val if @val;
+        1;
+      } or confess $@;
+    }
+    else
+    {
+      eval {
+        $return_value = $handler->( $s, @_ );
+        1;
+      } or confess $@;
+    }# end if()
   }# end foreach()
+  
+  return wantarray ? @return_values : $return_value;
 }# end _call_triggers()
 
 
@@ -745,9 +804,34 @@ sub dbi_commit
 sub remove_from_object_index
 {
   my $s = shift;
-  my $obj = delete($Live_Objects{$s->root_meta->{schema} . ':' . ref($s) . ':' . $s->id });
+  my $obj = delete($Live_Objects{ $s->get_cache_key });
   undef(%$obj);
 }# end remove_from_object_index()
+
+
+sub get_cache_key
+{
+  my $s = shift;
+  if( my $id = shift )
+  {
+    my $class = ref($s) ? ref($s) : $s;
+    return join ':', ( $s->root_meta->{schema}, $class, $id );
+  }
+  else
+  {
+    return $s->root_meta->{schema} . ':' . ref($s) . ':' . $s->id
+  }# end if()
+}# end get_cache_key()
+
+
+sub as_hashref
+{
+  my $s = shift;
+  my %data = %$s;
+  delete( $data{__Changed} );
+  delete( $data{__id} );
+  \%data;
+}# end as_hashref()
 
 
 #==============================================================================
@@ -1550,7 +1634,7 @@ Example:
 =head2 delete()
 
 Deletes the object from the database.  The object is then re-blessed into the special
-class C<Class::DBI::Object::That::Has::Been::Deleted>.
+class C<Class::DBI::Lite::Object::Has::Been::Deleted>.
 
 Example:
 
