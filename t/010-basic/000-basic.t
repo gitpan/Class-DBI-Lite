@@ -10,9 +10,11 @@ use_ok('My::User');
 use_ok('My::City');
 use_ok('My::State');
 
-map { $_->delete } My::City->retrieve_all;
-map { $_->delete } My::State->retrieve_all;
-map { $_->delete } My::User->retrieve_all;
+My::City->do_transaction(sub {
+  map { $_->delete } My::City->retrieve_all;
+  map { $_->delete } My::State->retrieve_all;
+  map { $_->delete } My::User->retrieve_all;
+});
 
 My::User->create(
   user_first_name => 'firstname',

@@ -8,15 +8,17 @@ use Carp qw( cluck confess );
 use SQL::Abstract;
 use SQL::Abstract::Limit;
 use Class::DBI::Lite::Iterator;
+use Class::DBI::Lite::Pager;
 use Class::DBI::Lite::RootMeta;
 use Class::DBI::Lite::EntityMeta;
 use Digest::MD5 'md5_hex';
+use POSIX 'ceil';
 use overload 
   '""'      => sub { eval { $_[0]->id } },
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.002';
+our $VERSION = '1.003';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -647,22 +649,113 @@ sub search_where
 
 
 #==============================================================================
+sub pager
+{
+  my ($s, $where, $attr) = @_;
+  
+  unless( $where && keys %$where )
+  {
+    $where = { 1 => 1 };
+  }# end unless()
+
+  foreach(qw( page_size page_number ))
+  {
+    confess "Required attribute '$_' was not provided"
+      unless $attr->{$_};
+  }# end foreach()
+  
+  # Limits:
+  my $page_size = $attr->{page_size};
+  my $page_number = $attr->{page_number};
+  my $offset = $page_number == 1 ? 0 : ($page_number - 1) * $page_size;
+
+  my $order = $attr ? $attr->{order_by} : undef;
+  my $sql = SQL::Abstract::Limit->new(%$attr, limit_dialect => $s->db_Main );
+  my($phrase, @bind) = $sql->where($where, $order);
+  $phrase =~ s/^\s*WHERE\s*//i;
+  
+  my $total = $s->count_search_where( $where );
+  my $total_pages = $total < $page_size ? 1 : POSIX::ceil($total / $page_size);
+  
+  return Class::DBI::Lite::Pager->new(
+    where       => $where,
+    order_by    => $order,
+    class       => ref($s) ? ref($s) : $s,
+    page_number => $page_number,
+    page_size   => $page_size,
+    total_pages => $total_pages,
+    total_items => $total,
+    start_item  => $offset + 1,
+    stop_item   => $offset + $page_size,
+  );
+}# end pager()
+
+
+#==============================================================================
+sub sql_pager
+{
+  my ($s, $args, $attr) = @_;
+  
+  confess "\$args is required" unless $args;
+  foreach( qw( data_sql count_sql ) )
+  {
+    confess "\$args->{$_} is required" unless $args->{$_};
+  }# end foreach()
+  $args->{sql_args} ||= [ ];
+
+  foreach(qw( page_size page_number ))
+  {
+    confess "Required attribute '$_' was not provided"
+      unless $attr->{$_};
+  }# end foreach()
+  
+  # Limits:
+  my $page_size = $attr->{page_size};
+  my $page_number = $attr->{page_number};
+  my $offset = $page_number == 1 ? 0 : ($page_number - 1) * $page_size;
+
+  # Get the total items:
+  my $sth = $s->db_Main->prepare( $args->{count_sql} );
+  $sth->execute( @{ $args->{sql_args} } );
+  my ($total) = $sth->fetchrow;
+  $sth->finish;
+  
+  my $total_pages = $total < $page_size ? 1 : POSIX::ceil($total / $page_size);
+  
+  return Class::DBI::Lite::Pager->new(
+    data_sql    => $args->{data_sql},
+    count_sql   => $args->{count_sql},
+    sql_args    => $args->{sql_args},
+    class       => ref($s) ? ref($s) : $s,
+    page_number => $page_number,
+    page_size   => $page_size,
+    total_pages => $total_pages,
+    total_items => $total,
+    start_item  => $offset + 1,
+    stop_item   => $offset + $page_size,
+  );
+}# end sql_pager()
+
+
+#==============================================================================
 sub count_search_where
 {
   my $s = shift;
   
   my $where = (ref $_[0]) ? $_[0]          : { @_ };
-  my $attr  = (ref $_[0]) ? $_[1]          : undef;
-  my $order = ($attr)     ? delete($attr->{order_by}) : undef;
-  my $limit  = ($attr)    ? delete($attr->{limit})    : undef;
-  my $offset = ($attr)    ? delete($attr->{offset})   : undef;
+  my $phrase = "";
+  my @bind;
+  if( keys( %$where ) == 1 && (keys %$where)[0] eq '1' && (values %$where)[0] eq '1' )
+  {
+    # No phrase:
+  }
+  else
+  {
+    my $abstract = SQL::Abstract::Limit->new();
+    ( $phrase, @bind ) = $abstract->where($where);
+  }# end if()
   
-  my $abstract = SQL::Abstract::Limit->new(%$attr, limit_dialect => $s->db_Main );
-  my($phrase, @bind) = $abstract->where($where, $order, $limit, $offset);
-  $phrase =~ s/^\s*WHERE\s*//i;
-  
-  my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} WHERE $phrase";
-  
+  my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} $phrase";
   SCOPE: {
     my $sth = $s->db_Main->prepare_cached($sql);
     $sth->execute( @bind );
@@ -1560,6 +1653,53 @@ Here is the example:
     warn $column->is_pk;
     ...
   }
+
+=head2 pager( \%where, { order_by => 'fields ASC', page_number => 1, page_size => 10 } )
+
+Returns a L<Class::DBI::Lite::Pager> object.
+
+Example:
+
+  # Step 1: Get our pager:
+  my $pager = My::Artist->pager({
+    name => { LIKE => 'Bob%' }
+  }, {
+    order_by    => 'name ASC',
+    page_number => 1,
+    page_size   => 20,
+  });
+  
+  # Step 2: Show the items in that recordset:
+  foreach my $artist ( $pager->items ) {
+    # Do stuff with $artist:
+    print $artist->name;
+  }
+
+See L<Class::DBI::Lite::Pager> for more details and examples.
+
+=head2 sql_pager( { data_sql => $str, count_sql => $str, sql_args => \@array }, { page_number => 1, page_size => 10 } )
+
+Returns a L<Class::DBI::Lite::Pager> object.
+
+Example:
+
+  # Step 1: Get our pager:
+  my $pager = My::Artist->sql_pager({
+    data_sql  => "SELECT * FROM artists WHERE name LIKE ?",
+    count_sql => "SELECT COUNT(*) FROM artists WHERE name LIKE ?",
+    sql_args  => [ 'Bob%' ],
+  }, {
+    page_number => 1,
+    page_size   => 20,
+  });
+  
+  # Step 2: Show the items in that recordset:
+  foreach my $artist ( $pager->items ) {
+    # Do stuff with $artist:
+    print $artist->name;
+  }
+
+See L<Class::DBI::Lite::Pager> for more details and examples.
 
 =head1 OBJECT METHODS
 

@@ -1,4 +1,5 @@
 Changes
+Class-DBI-Lite-1.002.tar.gz
 inc/Module/Install.pm
 inc/Module/Install/Base.pm
 inc/Module/Install/Can.pm
@@ -17,6 +18,7 @@ lib/Class/DBI/Lite/EntityMeta.pm
 lib/Class/DBI/Lite/Fixture.pm
 lib/Class/DBI/Lite/Iterator.pm
 lib/Class/DBI/Lite/mysql.pm
+lib/Class/DBI/Lite/Pager.pm
 lib/Class/DBI/Lite/RootMeta.pm
 lib/Class/DBI/Lite/SQLite.pm
 lib/Class/DBI/Lite/TableInfo.pm
@@ -25,6 +27,7 @@ Makefile.PL
 MANIFEST
 META.yml			Module meta-data (added by MakeMaker)
 README
+results.txt
 runprofiler.sh
 runtests.sh
 t/010-basic/000-basic.t
@@ -40,6 +43,8 @@ t/070-root_meta/010-basic.t
 t/080-test-fixtures/010-basic.t
 t/090-nosql/010-inmemory.t
 t/090-nosql/020-memcached.t
+t/100-paging/010-pager.t
+t/100-paging/020-sql_pager.t
 t/lib/My/City.pm
 t/lib/My/Fixtures.pm
 t/lib/My/Model.pm
