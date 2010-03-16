@@ -27,7 +27,6 @@ Makefile.PL
 MANIFEST
 META.yml			Module meta-data (added by MakeMaker)
 README
-results.txt
 runprofiler.sh
 runtests.sh
 t/010-basic/000-basic.t

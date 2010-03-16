@@ -1,5 +1,14 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.004   2010-03-16
+  - Had to update Changes and META.yml.
+
+1.003   2010-03-16
+  - Added Class::DBI::Lite::Pager
+  - Added 2 new methods: pager(...) and sql_pager(...)
+  - Added documentation for the new methods and the Pager class.
+  - Added tests for paging.
+
 1.002   2010-03-13
   - create(...) now properly inserts the new object into the %Live_Objects cache.
   - Experimental NoSQL caching extensions added.
