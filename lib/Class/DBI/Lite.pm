@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.004';
+our $VERSION = '1.005';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -742,7 +742,7 @@ sub count_search_where
 {
   my $s = shift;
   
-  my $where = (ref $_[0]) ? $_[0]          : { @_ };
+  my $where = (ref $_[0]) ? $_[0] : { @_ };
   my $phrase = "";
   my @bind;
   if( keys( %$where ) == 1 && (keys %$where)[0] eq '1' && (values %$where)[0] eq '1' )
@@ -782,13 +782,13 @@ sub find_or_create
 
 
 #==============================================================================
-sub has_a
+sub belongs_to
 {
   my ($class, $method, $otherClass, $fk) = @_;
   
   $class->_load_class( $otherClass );
 
-  $class->_meta->{has_a_rels}->{$method} = {
+  $class->_meta->{belongs_to_rels}->{$method} = {
     class => $otherClass,
     fk    => $fk
   };
@@ -799,7 +799,8 @@ sub has_a
     
     $otherClass->retrieve( $s->$fk );
   };
-}# end has_a()
+}# end belongs_to()
+*has_a = \&belongs_to;
 
 
 #==============================================================================
@@ -815,8 +816,11 @@ sub has_many
   
   no strict 'refs';
   *{"$class\::$method"} = sub {
-    my $s = shift;
-    $otherClass->search( $fk => $s->$fk );
+    my ($s, $args, $attrs) = @_;
+    $args = { } unless $args;
+    $args->{ $fk } = $s->id;
+    $attrs ||= { };
+    $otherClass->search_where( $args, $attrs );
   };
   
   *{"$class\::add_to_$method"} = sub {
@@ -833,6 +837,36 @@ sub has_many
     $_->delete foreach $s->$method;
   });
 }# end has_many()
+
+
+#==============================================================================
+sub has_one
+{
+  my ($class, $method, $otherClass, $fk) = @_;
+  
+  $class->_load_class( $otherClass );
+  $class->_meta->{has_one_rels}->{$method} = {
+    class => $otherClass,
+    fk    => $fk,
+  };
+  
+  no strict 'refs';
+  *{"$class\::$method"} = sub {
+    my $s = shift;
+    my ($item) = $otherClass->search( $fk => $s->id )
+      or return;
+    return $item;
+  };
+  
+  *{"$class\::set_$method"} = sub {
+    my $s = shift;
+    my %options = ref($_[0]) ? %{$_[0]} : @_;
+    $otherClass->create(
+      %options,
+      $fk => $s->id,
+    );
+  };
+}# end has_one()
 
 
 #==============================================================================
@@ -1205,33 +1239,11 @@ That's the same as:
     artist_id => $artist->id
   );
 
-=head2 has_a( ... )
+=head2 belongs_to( ... )
 
-Declares a "one-to-one" relationship between two classes.
+Declares that instances "this" class exists only as a feature of instances of another class.
 
-  package My::Album;
-  ...
-  __PACKAGE__->has_a(
-    artist  =>
-      'My::Artist'  =>
-        'artist_id'
-  );
-
-The syntax is:
-
-  __PACKAGE__->has_a(
-    $what_i_will_call_it  =>
-      $the_class_name =>
-        $my_field_name_with_the_other_class's_primary_column's_value_in_it
-  );
-
-The result is this:
-
-  my $artist = $album->artist;
-
-That's the same as:
-
-  my $artist = My::Artist->retrieve( $album->artist_id );
+For example, "songs" exist as features of "albums" - not the other way around.
 
 =head2 construct( $hashref )
 
@@ -1247,7 +1259,7 @@ Example:
     print $artist->name;
   }
 
-=head2 eval { do_transaction( \&subref ) }
+=head2 eval { do_transaction( sub { ... } ) }
 
 Executes a block of code within the context of a transaction.
 

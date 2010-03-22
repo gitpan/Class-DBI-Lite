@@ -1,5 +1,4 @@
 Changes
-Class-DBI-Lite-1.002.tar.gz
 inc/Module/Install.pm
 inc/Module/Install/Base.pm
 inc/Module/Install/Can.pm
@@ -29,11 +28,13 @@ META.yml			Module meta-data (added by MakeMaker)
 README
 runprofiler.sh
 runtests.sh
+t/010-basic/000-AAA-setup.t
 t/010-basic/000-basic.t
 t/010-basic/000-compile.t
 t/010-basic/001-connection.t
 t/010-basic/003-memcycle.t
 t/020-subclassing/010-basic.t
+t/025-relationships/010-general.t
 t/030-meta/010-basic.t
 t/040-transactions/010-basic.t
 t/050-table-info/010-basic.t
@@ -50,4 +51,5 @@ t/lib/My/Model.pm
 t/lib/My/Province.pm
 t/lib/My/State.pm
 t/lib/My/User.pm
+t/lib/My/Zipcode.pm
 t/testdb

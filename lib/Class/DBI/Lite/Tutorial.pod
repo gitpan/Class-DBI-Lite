@@ -76,7 +76,7 @@ File C<lib/My/Album.pm>
   __PACKAGE__->set_up_table('albums');
   
   # Albums have an artist, referenced by the field 'artist_id'
-  __PACKAGE__->has_a(
+  __PACKAGE__->belongs_to(
     artist  =>
       'My::Artist'  =>
         'artist_id'
@@ -112,7 +112,15 @@ If you have relationships between your classes, you can express them like this:
 
 =head3 One-To-One Relationships
 
-  __PACKAGE__->has_a(
+  __PACKAGE__->has_one(
+    <methodname> =>
+      <classname> =>
+        <my_fieldname>
+  );
+
+...or...
+
+  __PACKAGE__->belongs_to(
     <methodname> =>
       <classname> =>
         <my_fieldname>
@@ -139,6 +147,23 @@ Which means that given an instance of C<My::Artist> you can do this:
   foreach my $album ( @albums ) {
     print $album->artist->name;
   }
+
+  # As of version 1.005 You can also do the following:
+  my @best_of = $artist->albums({name => { LIKE => '%Best of%'} });
+  
+  my @sorted = $artist->albums(undef, { order_by => 'name DESC' } );
+  
+  my @sorted_best = $artist->albums({
+    name => { LIKE => '%Best of%' }
+  }, {
+    order_by => 'name DESC'
+  });
+  
+  my @top_five = $artist->albums({
+    name => { LIKE => '%Best of%' }
+  }, {
+    order_by => 'name DESC limit 0, 5'
+  });
 
 That example would look like this if we were doing it with hand-coded SQL statements:
 

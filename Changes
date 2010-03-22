@@ -1,5 +1,14 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.005   2010-03-22
+  - Renamed has_a method as belongs_to.
+  - Added has_one method.
+  - Added test t/010-basic/000-AAAsetup.t that creates the SQLite database structure.
+  - Added the ability to pass search_where-style arguments to the has-many relationship
+    methods.  So if My::Artist has_many My::Album as 'albums' you can now do:
+      my @albums = $artist->albums({name => { LIKE => 'Best of%'}}, {order_by => 'name DESC'});
+    * A SPECIAL thanks to Tudor Marghidanu for finding a bug and for suggesting this update.
+
 1.004   2010-03-16
   - Had to update Changes and META.yml.
 
