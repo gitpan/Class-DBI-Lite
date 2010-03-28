@@ -34,8 +34,20 @@ sub total_items { shift->{total_items} }
 sub total_pages { shift->{total_pages} }
 sub start_item  { shift->{start_item} }
 sub stop_item   { shift->{stop_item} }
-sub has_next { $_[0]->{page_number} < $_[0]->{total_pages} }
 sub has_prev { shift->{page_number} > 1 }
+
+sub has_next
+{
+  my $s = shift;
+  if( $s->{_fetched_once} )
+  {
+    $s->{page_number} < $s->{total_pages};
+  }
+  else
+  {
+    $s->{total_pages} > 0;
+  }# end if()
+}# end has_next()
 
 *items = \&next_page;
 

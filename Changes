@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.006   2010-03-27
+  - Pager was not handling 'has_next' correctly - now it does.
+
 1.005   2010-03-22
   - Renamed has_a method as belongs_to.
   - Added has_one method.
