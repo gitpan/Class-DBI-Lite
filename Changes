@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.007   2010-04-02
+  - Pager now does the right thing when you want to page without specifying
+    the field to sort by.
+  - New method $pager->navigations( [$padding] ).
+
 1.006   2010-03-27
   - Pager was not handling 'has_next' correctly - now it does.
 

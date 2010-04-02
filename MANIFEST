@@ -45,6 +45,7 @@ t/090-nosql/010-inmemory.t
 t/090-nosql/020-memcached.t
 t/100-paging/010-pager.t
 t/100-paging/020-sql_pager.t
+t/100-paging/030-navigations.t
 t/lib/My/City.pm
 t/lib/My/Fixtures.pm
 t/lib/My/Model.pm

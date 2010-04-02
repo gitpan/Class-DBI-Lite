@@ -34,20 +34,27 @@ sub total_items { shift->{total_items} }
 sub total_pages { shift->{total_pages} }
 sub start_item  { shift->{start_item} }
 sub stop_item   { shift->{stop_item} }
-sub has_prev { shift->{page_number} > 1 }
+sub has_prev    { shift->{page_number} > 1 }
 
 sub has_next
 {
   my $s = shift;
+  $s->{total_pages} > $s->{page_number};
+}# end has_next()
+
+sub _has_more
+{
+  my $s = shift;
+  
   if( $s->{_fetched_once} )
   {
     $s->{page_number} < $s->{total_pages};
   }
   else
   {
-    $s->{total_pages} > 0;
+    $s->{total_pages} >= $s->{page_number};
   }# end if()
-}# end has_next()
+}# end _has_more()
 
 *items = \&next_page;
 
@@ -55,7 +62,7 @@ sub next_page
 {
   my $s = shift;
   
-  return unless $s->has_next;
+  return unless $s->_has_more;
   
   if( $s->{_fetched_once}++ )
   {
@@ -80,7 +87,9 @@ sub next_page
     return $s->{class}->search_where(
       $s->{where},
       {
-        order_by  => "$s->{order_by} $limit",
+        order_by  => $s->{order_by} || undef,
+        limit     => $s->page_size,
+        offset    => $offset,
       }
     );
   }# end if()
@@ -113,11 +122,51 @@ sub prev_page
     return $s->{class}->search_where(
       $s->{where},
       {
-        order_by  => "$s->{order_by} $limit",
+        order_by  => $s->{order_by} || undef,
+        limit     => $s->page_size,
+        offset    => $offset,
       }
     );
   }# end if()
 }# end prev_page()
+
+
+sub navigations
+{
+  my ($s, $padding) = @_;
+  
+  $padding ||= 5;
+  
+  # Wiggle the start and stop out of the data we have:
+  my $start = $s->page_number - $padding > 0
+              ? $s->page_number - $padding
+              : 1;
+  my $stop  = $s->page_number + $padding <= $s->total_pages
+              ? $s->page_number + $padding
+              : $s->total_pages;
+  
+  # Now:
+  if( $stop - $start < ( $padding * 2 ) + 1 )
+  {
+    # Need to add more pages:
+    if( $start == 1 && $stop < $s->total_pages )
+    {
+      while( ( $stop - $start < ( $padding * 2 ) ) && $stop < $s->total_pages )
+      {
+        $stop++;
+      }# end while()
+    }
+    elsif( $stop == $s->total_pages && $start > 1 )
+    {
+      while( ( $stop - $start < ( $padding * 2 ) ) && $start > 0 )
+      {
+        $start--;
+      }# end while()
+    }# end if()
+  }# end if()
+  
+  return ( $start, $stop );
+}# end navigations()
 
 
 sub _offset
@@ -173,6 +222,13 @@ Class::DBI::Lite::Pager - Page through your records, easily.
   if( $pager->has_next ) {
     print "Next page number is " . ( $pager->page_number + 1 ) . "\n";
   }
+  
+  # Get the 'start' and 'stop' page numbers for a navigation strip with 
+  # up to 5 pages before and after the 'current' page:
+  my ($start, $stop) = $pager->navigations( 5 );
+  for( $start..$stop ) {
+    print "Page $_ | ";
+  }
 
 =head2 Fetch Huge Datasets in Small Chunks
 
@@ -192,8 +248,6 @@ Class::DBI::Lite::Pager - Page through your records, easily.
 =head1 DESCRIPTION
 
 Paging through records should be easy.  C<Class::DBI::Lite::Pager> B<makes> it easy.
-
-
 
 =head1 CAVEAT EMPTOR
 
@@ -272,6 +326,54 @@ Returns the previous page of results.  If called in list context, returns an arr
 called in scalar context, returns a L<Class::DBI::Lite::Iterator>.
 
 If there is not a previous page, returns undef.
+
+=head2 navigations( [$padding = 5] )
+
+OK - grab a cup of coffee, then come back for the explanation.
+
+Ready?  Good.
+
+Say you have a C<$pager>:
+
+  my $pager = My::Albums->pager(undef, {
+    page_size => 10,
+    page_number => 1,
+  });
+
+Then you want to make your paging navigation with at least 10 pages shown, and a
+maximum of 5 pages to either side of the "current" page (like Google).
+
+  1  2  3  4  5  6  7  8  9  10 11
+
+On the first page you I<could> just do:
+
+  for( 1..10 ) {
+    # print a link to that page.
+  }
+
+...but...when you get toward the middle or off to the end, it gets weird.
+
+Tah-Dah!
+
+  my ($start, $stop) = $pager->navigations( 5 );
+
+Now you can simply do:
+
+  for( $start..$stop ) {
+    # print a link to that page:
+  }
+
+B<It> will always do the right thing - will I<you>?
+
+So when you're on page 7 it will look like this:
+
+  2  3  4  5  6  7  8  9  10  11  12
+
+Then, if there were 20 pages in your entire resultset, page 20 would look like this:
+
+  10  11  12  13  14  15  16  17  18  19  20
+
+Great, huh?
 
 =head1 AUTHOR
 
