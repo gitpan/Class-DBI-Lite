@@ -9,7 +9,7 @@ sub new
 {
   my ($class, %args) = @_;
   
-  return bless {
+  my $s = bless {
     data_sql      => undef,
     count_sql     => undef,
     sql_args      => [ ],
@@ -24,6 +24,14 @@ sub new
     %args,
     _fetched_once => 0,
   }, $class;
+
+  ($s->{stop_item}) = sort { $a <=> $b } (
+    $s->page_number * $s->page_size,
+    $s->total_items
+  );
+  $s->{start_item} = ( $s->page_number - 1 ) * $s->page_size + 1;
+
+  return $s;
 }# end new()
 
 
@@ -68,16 +76,18 @@ sub next_page
   {
     $s->{page_number}++;
   }# end if()
-  
-  $s->{stop_item} = $s->page_number * $s->page_size;
-  $s->{stop_item} = $s->total_items if $s->stop_item > $s->total_items;
+
+  ($s->{stop_item}) = sort { $a <=> $b } (
+    $s->page_number * $s->page_size,
+    $s->total_items
+  );
   $s->{start_item} = ( $s->page_number - 1 ) * $s->page_size + 1;
   
   my $offset = $s->_offset;
-  my $limit = " LIMIT $offset, @{[ $s->{page_size} ]} ";
   
   if( $s->{data_sql} )
   {
+    my $limit = " LIMIT $offset, @{[ $s->{page_size} ]} ";
     my $sth = $s->{class}->db_Main->prepare( "$s->{data_sql} $limit" );
     $sth->execute( @{ $s->{sql_args} } );
     return $s->{class}->sth_to_objects( $sth );
@@ -109,10 +119,10 @@ sub prev_page
   $s->{start_item} = 0 if $s->{start_item} < 0;
   
   my $offset = $s->_offset;
-  my $limit = " LIMIT $offset, @{[ $s->{page_size} ]} ";
   
   if( $s->{data_sql} )
   {
+    my $limit = " LIMIT $offset, @{[ $s->{page_size} ]} ";
     my $sth = $s->{class}->db_Main->prepare( "$s->{data_sql} $limit" );
     $sth->execute( @{ $s->{sql_args} } );
     return $s->{class}->sth_to_objects( $sth );

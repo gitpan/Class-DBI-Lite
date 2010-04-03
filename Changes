@@ -1,5 +1,11 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.008   2010-04-02
+  - Pager was reporting incorrect stop_item before items() or next_page() were called.
+  - That caused problems when you wanted to say...
+    "Showing items X - Y of Z total items"
+    ...before you actually showed them.
+
 1.007   2010-04-02
   - Pager now does the right thing when you want to page without specifying
     the field to sort by.
