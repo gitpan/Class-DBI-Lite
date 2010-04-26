@@ -95,7 +95,7 @@ sub get_table_info
     my %enum_args = ( );
     if( lc($type) eq 'enum' )
     {
-      my $val = "$type";
+      my $val = "$res->{type}";
       $val =~ s/^enum\(//;
       $val =~ s/\)$//;
       my @vals = grep { length($_) } map {

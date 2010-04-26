@@ -32,4 +32,15 @@ ok( My::State->retrieve_all->count == 0 );
 my ($state) = My::State->retrieve_all;
 is( $state => undef );
 
+my $state1 = My::State->find_or_create(
+  state_name  => "TestState",
+  state_abbr  => "TE"
+);
+
+my $state2 = My::State->find_or_create(
+  state_name  => "TestState",
+  state_abbr  => "TE"
+);
+
+is_deeply $state1, $state2, "find_or_create() works";
 

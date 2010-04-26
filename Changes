@@ -1,5 +1,11 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.009   2010-04-26
+  - Class::DBI::Lite::mysql was incorrectly parsing `SHOW COLUMNS FROM <table>`
+    and therefore not returning the correct information when you called:
+      My::Type->get_table_info->column('foo')->enum_values
+    This is now fixed.
+
 1.008   2010-04-02
   - Pager was reporting incorrect stop_item before items() or next_page() were called.
   - That caused problems when you wanted to say...
