@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.010   2010-05-13
+  - My::Thing->sql_pager(...) now correctly handles {order_by => ...}
+
 1.009   2010-04-26
   - Class::DBI::Lite::mysql was incorrectly parsing `SHOW COLUMNS FROM <table>`
     and therefore not returning the correct information when you called:

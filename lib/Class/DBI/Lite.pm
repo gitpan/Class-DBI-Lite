@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.009';
+our $VERSION = '1.010';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -1093,14 +1093,14 @@ So...I reimplemented (most) of the C<Class::DBI> interface in a way that I prefe
 things that didn't matter to me (eg: many-to-many relationships, column groups) and added some things
 I needed frequently (eg: transactions, single-field triggers, mod_perl compatibility).
 
-=head1 PHILOSPHY
+=head1 PHILOSOPHY
 
 C<Class::DBI::Lite> is intended to minimize the boiler-plate code typically written
 in most applications.  It is not intended to completely insulate developers from
 interacting with the database directly.
 
 C<Class::DBI::Lite> is not a way to avoid I<learning> SQL - it is a way to avoid I<writing>
-SQL.
+boring, repetitive, "boiler-plate" SQL.
 
 =head1 PUBLIC PROPERTIES
 

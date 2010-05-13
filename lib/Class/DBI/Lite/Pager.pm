@@ -88,7 +88,8 @@ sub next_page
   if( $s->{data_sql} )
   {
     my $limit = " LIMIT $offset, @{[ $s->{page_size} ]} ";
-    my $sth = $s->{class}->db_Main->prepare( "$s->{data_sql} $limit" );
+    my $order_by = $s->{order_by} ? " ORDER BY $s->{order_by} " : "";
+    my $sth = $s->{class}->db_Main->prepare( "$s->{data_sql} $order_by $limit" );
     $sth->execute( @{ $s->{sql_args} } );
     return $s->{class}->sth_to_objects( $sth );
   }
