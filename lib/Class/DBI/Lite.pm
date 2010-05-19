@@ -3,7 +3,7 @@ package Class::DBI::Lite;
 
 use strict;
 use warnings 'all';
-use base 'Ima::DBI';
+use base 'Ima::DBI::Contextual';
 use Carp qw( cluck confess );
 use SQL::Abstract;
 use SQL::Abstract::Limit;
@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.010';
+our $VERSION = '1.011';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -27,7 +27,6 @@ our %DBI_OPTIONS = (
   ChopBlanks          => 1,
   AutoCommit          => 1,
   RaiseError          => 1,
-  RootClass           => 'DBIx::ContextualFetch',
 );
 
 BEGIN {
@@ -509,20 +508,26 @@ sub sth_to_objects
   my ($s, $sth, $sql) = @_;
   
   my $class = ref($s) ? ref($s) : $s;
+  my @vals;
+  while( my $rec = $sth->fetchrow_hashref )
+  {
+    push @vals, $rec;
+  }# end while()
+  $sth->finish();
+  
+  
   if( wantarray )
   {
-    my @vals = map { $class->construct( $_ ) } $sth->fetchall_hash;
-    $sth->finish();
-    return @vals;
+    return unless @vals;
+    return map { $class->construct( $_ ) } @vals;
   }
   else
   {
     my $iter = Class::DBI::Lite::Iterator->new(
       [
-        map { $class->construct( $_ ) } $sth->fetchall_hash
+        map { $class->construct( $_ ) } @vals
       ]
     );
-    $sth->finish();
     return $iter;
   }# end if()
 }# end sth_to_objects()

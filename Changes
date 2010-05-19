@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.011   2010-05-19
+  - Removed dependency on DBIx::ContextualFetch.
+  - Removed dependency on Ima::DBI - lateral move to Ima::DBI::Lite.  See Ima::DBI::Lite
+    for details on why...
+
 1.010   2010-05-13
   - My::Thing->sql_pager(...) now correctly handles {order_by => ...}
 

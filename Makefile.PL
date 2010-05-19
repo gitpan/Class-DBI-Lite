@@ -13,9 +13,8 @@ test_requires 'Test::More'          => '0.77';
 test_requires 'Test::Memory::Cycle' => 0;
 test_requires 'DBD::SQLite'         => 0;
 
-requires 'DBIx::ContextualFetch'    => 0;
 requires 'DBI'                      => 0;
-requires 'Ima::DBI'                 => 0;
+requires 'Ima::DBI::Contextual'     => 0;
 requires 'DBIx::ContextualFetch'    => 0;
 requires 'SQL::Abstract'            => 0;
 requires 'SQL::Abstract::Limit'     => 0;
