@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.012   2010-05-20
+  - This release addresses several issues related to running multiple applications
+    under different VirtualHosts on the same apache server.
+
 1.011   2010-05-19
   - Removed dependency on DBIx::ContextualFetch.
   - Removed dependency on Ima::DBI - lateral move to Ima::DBI::Lite.  See Ima::DBI::Lite

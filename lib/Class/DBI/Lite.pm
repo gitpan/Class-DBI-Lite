@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.011';
+our $VERSION = '1.012';
 our $meta;
 
 our %DBI_OPTIONS = (
