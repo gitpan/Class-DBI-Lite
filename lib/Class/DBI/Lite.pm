@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.012';
+our $VERSION = '1.013';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -30,7 +30,7 @@ our %DBI_OPTIONS = (
 );
 
 BEGIN {
-  use vars qw( $Weaken_Is_Available %Live_Objects $Connection );
+  use vars qw( $Weaken_Is_Available %Live_Objects );
 
   $Weaken_Is_Available = 1;
   eval {
@@ -138,7 +138,7 @@ sub _init_meta
   
   no strict 'refs';
   no warnings qw( once redefine );
-  my $schema = $class->connection->[0];
+  my $schema = $class->root_meta->schema;
   
   my $_class_meta = Class::DBI::Lite::EntityMeta->new( $class, $schema, $entity );
   
@@ -187,10 +187,7 @@ sub connection
 {
   my ($class, @DSN) = @_;
   
-  if( $Connection && ! @DSN )
-  {
-    return $Connection;
-  }# end if()
+  return $class->db_Main unless @DSN;
   
   # Set up the root meta:
   no strict 'refs';
@@ -210,7 +207,8 @@ sub connection
 		Taint      => 1,
 		RootClass  => "DBIx::ContextualFetch"
   });
-  $Connection = \@DSN;
+  
+  1;
 }# end connection()
 
 
@@ -936,7 +934,8 @@ sub dbi_commit
 sub remove_from_object_index
 {
   my $s = shift;
-  my $obj = delete($Live_Objects{ $s->get_cache_key });
+  my $obj = $Live_Objects{ $s->get_cache_key };
+  delete($Live_Objects{ $s->get_cache_key });
   undef(%$obj);
 }# end remove_from_object_index()
 

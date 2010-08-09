@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.013   2010-08-08
+  - This release fixes that bug related to running multiple applications under
+    different VirtualHosts on the same apache server.
+
 1.012   2010-05-20
   - This release addresses several issues related to running multiple applications
     under different VirtualHosts on the same apache server.

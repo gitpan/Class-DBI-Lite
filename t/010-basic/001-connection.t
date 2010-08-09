@@ -282,8 +282,9 @@ my $userID;
 
 my ($city) = My::City->retrieve_all->first;
 $city->remove_from_object_index;
-is(
-  $city => undef
+# Removing something from the object index 
+ok(
+  ! $city, "City was removed from the object index"
 );
 
 
