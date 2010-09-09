@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.014   2010-09-09
+  - root() is initialized to your application's base class (eg: My::Model).
+    This helps segment database handles even further.
+
 1.013   2010-08-08
   - This release fixes that bug related to running multiple applications under
     different VirtualHosts on the same apache server.

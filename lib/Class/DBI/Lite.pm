@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.013';
+our $VERSION = '1.014';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -51,7 +51,7 @@ sub get_last_insert_id;
 sub import
 {
   my $class = shift;
-  
+
   no strict 'refs';
   $class->_load_class( ( @{$class.'::ISA'} )[0] );
   if( my $table = eval { ( @{$class.'::ISA'} )[0]->table } )
@@ -67,7 +67,7 @@ sub clear_object_index
   my $s = shift;
   
   my $class = ref($s) ? ref($s) : $s;
-  my $key_starter = $s->root_meta->{schema} . ":" . $class;
+  my $key_starter = $s->root_meta->schema . ":" . $class;
   map { delete($Live_Objects{$_}) } grep { m/^$key_starter\:\d+/o } keys(%Live_Objects);
 }# end clear_object_index()
 
@@ -91,7 +91,7 @@ sub construct
   my $class = ref($s) ? ref($s) : $s;
 
   my $PK = $class->primary_column;
-  my $key = join ':', grep { defined($_) } ( $s->root_meta->{schema}, $class, $data->{ $PK } );
+  my $key = join ':', grep { defined($_) } ( $s->root_meta->schema, $class, $data->{ $PK } );
   return $Live_Objects{$key} if $Live_Objects{$key};
   
   $data->{__id} = $data->{ $PK };
@@ -122,8 +122,8 @@ sub deconstruct
 
 
 #==============================================================================
-sub schema { $_[0]->root_meta->{schema} }
-sub dsn    { $_[0]->root_meta->{dsn} }
+sub schema { $_[0]->root_meta->schema }
+sub dsn    { $_[0]->root_meta->dsn }
 sub table  { $_[0]->_meta->{table} }
 sub triggers { @{ $_[0]->_meta->{triggers}->{ $_[1] } } }
 sub _meta { }
@@ -195,6 +195,8 @@ sub connection
   my $meta = Class::DBI::Lite::RootMeta->new(
     \@DSN
   );
+  my $caller = caller();
+  *{ "$caller\::root" } = sub { $caller };
   *{ $class->root . "::root_meta" } = sub { $meta };
   
   # Connect:

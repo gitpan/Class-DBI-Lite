@@ -10,7 +10,7 @@ sub new
   my ($class, $data) = @_;
   
   my $s = bless {
-    data => $data,
+    data  => $data,
     count => scalar(@$data),
     idx   => 0
   }, $class;
@@ -25,6 +25,7 @@ sub init { }
 
 sub first
 {
+  return unless $_[0]->{data}->[0];
   $_[0]->{data}->[0];
 }# end first()
 
