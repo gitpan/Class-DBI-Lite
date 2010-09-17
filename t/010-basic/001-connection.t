@@ -76,10 +76,12 @@ my $userID;
   is(
     $cities->count => 10
   );
+  my $state_id = $A->id;
   $A->delete;
   is(
-    scalar( grep { "$_" } @{$cities->{data}} ) => 0
+    scalar( grep { "$_" } @{$cities->{data}} ) => 10
   );
+  map { $_->delete } My::City->search( state_id => $state_id );
 }
 
 # retrieve:

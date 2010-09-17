@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.105   2010-09-17  ** BEHAVIOR CHANGE!!!! **
+  - has_many(...) no longer adds a trigger for after_delete that would remove whatever
+    the 'has_many' reference declares.  Reason? This should be handled by the database,
+    not by the application.
+
 1.014   2010-09-09
   - root() is initialized to your application's base class (eg: My::Model).
     This helps segment database handles even further.

@@ -11,6 +11,8 @@ use_ok('My::Model');
 use_ok('My::City');
 use_ok('My::State');
 
+map { $_->delete } My::City->retrieve_all;
+
 My::City->find_or_create(
   state_id  =>
     My::State->find_or_create(

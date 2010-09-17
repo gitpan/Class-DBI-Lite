@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.014';
+our $VERSION = '1.015';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -837,10 +837,10 @@ sub has_many
     );
   };
   
-  $class->add_trigger( after_delete => sub {
-    my $s = shift;
-    $_->delete foreach $s->$method;
-  });
+#  $class->add_trigger( after_delete => sub {
+#    my $s = shift;
+#    $_->delete foreach $s->$method;
+#  });
 }# end has_many()
 
 

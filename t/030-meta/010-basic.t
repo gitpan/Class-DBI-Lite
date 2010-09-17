@@ -263,7 +263,7 @@ ok(
     'no triggers before_create'
   );
   is(
-    scalar(My::State->triggers('after_delete')) => 1,
+    scalar(My::State->triggers('after_delete')) => 0,
     'there is 1 after_delete trigger for My::State'
   );
 }
@@ -285,7 +285,7 @@ ok(
     'no triggers before_create'
   );
   is(
-    scalar($states[0]->triggers('after_delete')) => 1,
+    scalar($states[0]->triggers('after_delete')) => 0,
     'there is 1 after_delete trigger for $states[0]'
   );
 }
