@@ -42,16 +42,5 @@ sub has_a_rels    { my $s = shift; @_ ? $s->{has_a_rels}    = shift : $s->{has_a
 sub has_many_rels { my $s = shift; @_ ? $s->{has_many_rels} = shift : $s->{has_many_rels} }
 sub columns       { my $s = shift; @_ ? $s->{columns}       = shift : $s->{columns} }
 
-#==============================================================================
-#sub AUTOLOAD
-#{
-#  my $s = shift;
-#  our $AUTOLOAD;
-#  my ($key) = $AUTOLOAD =~ m/([^:]+)$/;
-#  
-#  # Universal setter/getter:
-#  @_ ? $s->{$key} = shift : $s->{$key};
-#}# end AUTOLOAD()
-
 1;# return true:
 

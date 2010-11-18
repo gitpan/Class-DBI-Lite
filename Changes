@@ -1,6 +1,10 @@
 Revision history for Perl extension Class::DBI::Lite.
 
-1.105   2010-09-17  ** BEHAVIOR CHANGE!!!! **
+1.016   2010-11-17
+  - Included Class::DBI::Lite::Dataset - a class with helper methods useful for
+    fetching a recordset useful for paged displays.
+
+1.015   2010-09-17  ** BEHAVIOR CHANGE!!!! **
   - has_many(...) no longer adds a trigger for after_delete that would remove whatever
     the 'has_many' reference declares.  Reason? This should be handled by the database,
     not by the application.

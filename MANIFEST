@@ -13,6 +13,7 @@ lib/Class/DBI/Lite/CacheManager.pm
 lib/Class/DBI/Lite/CacheManager/InMemory.pm
 lib/Class/DBI/Lite/CacheManager/Memcached.pm
 lib/Class/DBI/Lite/ColumnInfo.pm
+lib/Class/DBI/Lite/Dataset.pm
 lib/Class/DBI/Lite/EntityMeta.pm
 lib/Class/DBI/Lite/Fixture.pm
 lib/Class/DBI/Lite/Iterator.pm
@@ -46,6 +47,7 @@ t/090-nosql/020-memcached.t
 t/100-paging/010-pager.t
 t/100-paging/020-sql_pager.t
 t/100-paging/030-navigations.t
+t/100-paging/040-dataset.t
 t/lib/My/City.pm
 t/lib/My/Fixtures.pm
 t/lib/My/Model.pm

@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.015';
+our $VERSION = '1.016';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -740,6 +740,15 @@ sub sql_pager
     stop_item   => $offset + $page_size,
   );
 }# end sql_pager()
+
+
+#==============================================================================
+sub dataset
+{
+  my ($s) = shift;
+  require Class::DBI::Lite::Dataset;
+  Class::DBI::Lite::Dataset->new( @_ );
+}# end dataset()
 
 
 #==============================================================================
