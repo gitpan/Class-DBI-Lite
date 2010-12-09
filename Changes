@@ -1,5 +1,11 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.017   2010-12-09
+  - Upgrade Recommended!!
+  - BUG FIX: before_update_<field> triggers were not able to change the value of object data.
+    So if you had a before_update_password trigger that hashed the password before
+    the plaintext password were stored in the database, it would not work as expected.
+
 1.016   2010-11-17
   - Included Class::DBI::Lite::Dataset - a class with helper methods useful for
     fetching a recordset useful for paged displays.

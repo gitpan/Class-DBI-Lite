@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.016';
+our $VERSION = '1.017';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -400,8 +400,6 @@ sub update
   
   my $changed = delete( $s->{__Changed} );
   $s->{__Changed} = { };
-  my @fields  = map { "$_ = ?" } grep { $changed->{$_} } sort keys(%$s);
-  my @vals    = map { $s->{$_} } grep { $changed->{$_} } sort keys(%$s);
   
   foreach my $field ( grep { $changed->{$_} } sort keys(%$s) )
   {
@@ -409,6 +407,8 @@ sub update
   }# end foreach()
   
   # Make our SQL:
+  my @fields  = map { "$_ = ?" } grep { $changed->{$_} } sort keys(%$s);
+  my @vals    = map { $s->{$_} } grep { $changed->{$_} } sort keys(%$s);
   my $sql = <<"";
     UPDATE @{[ $s->table ]} SET
       @{[ join ', ', @fields ]}

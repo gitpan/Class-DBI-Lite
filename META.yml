@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Class-DBI-Lite
-version:             1.016
+version:             1.017
 abstract:            Lightweight ORM for Perl
 license:             ~
 author:              
