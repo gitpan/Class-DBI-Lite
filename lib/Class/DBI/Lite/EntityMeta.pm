@@ -32,6 +32,7 @@ sub new
       has_a_rels    => { },   # Class-based
       has_many_rels => { },   # Class-based,
       columns       => $forClass->get_meta_columns( $schema, $entity ),
+      trace         => 0,
     }, $s;
   }# end if()
 }# end new()
@@ -41,6 +42,7 @@ sub triggers      { my $s = shift; @_ ? $s->{triggers}      = shift : $s->{trigg
 sub has_a_rels    { my $s = shift; @_ ? $s->{has_a_rels}    = shift : $s->{has_a_rels} }
 sub has_many_rels { my $s = shift; @_ ? $s->{has_many_rels} = shift : $s->{has_many_rels} }
 sub columns       { my $s = shift; @_ ? $s->{columns}       = shift : $s->{columns} }
+sub trace         { my $s = shift; @_ ? $s->{trace}         = shift : $s->{trace} }
 
 1;# return true:
 

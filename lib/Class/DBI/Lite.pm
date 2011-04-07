@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.017';
+our $VERSION = '1.018';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -86,7 +86,7 @@ sub find_column
 #==============================================================================
 sub construct
 {
-  my ($s, $data) = @_;
+  my ($s, $data, $is_void_context) = @_;
   
   my $class = ref($s) ? ref($s) : $s;
 
@@ -98,7 +98,7 @@ sub construct
   $data->{__Changed} = { };
   
   my $obj = bless $data, $class;
-  if( $Weaken_Is_Available )
+  if( $Weaken_Is_Available && ! $is_void_context )
   {
     $Live_Objects{$key} = $obj;
     
@@ -338,6 +338,12 @@ sub create
       @{[ join ',', map {"?"} @vals ]}
     )
 
+  if( $s->_meta->trace )
+  {
+    my $class = ref($s) || $s;
+    cluck "$class: create($sql, values[" . join( ",", map {qq('$_')} @vals) . "])";
+  }# end if()
+  
   my $sth = $s->db_Main->prepare_cached( $sql );
   $sth->execute( @vals );
   my $id = $s->get_last_insert_id
@@ -347,7 +353,7 @@ sub create
   my $new_obj = $s->construct( {
     %$pre_obj,
     $PK => $id,
-  } );
+  }, defined wantarray );
   $pre_obj->discard_changes;
 
   $new_obj->_call_triggers( after_create => $new_obj );
@@ -414,6 +420,11 @@ sub update
       @{[ join ', ', @fields ]}
     WHERE @{[ $s->primary_column ]} = ?
 
+  if( $s->_meta->trace )
+  {
+    my $class = ref($s) || $s;
+    cluck "$class: update($sql, values[" . join( ",", map {qq('$_')} @vals) . "])";
+  }# end if()
   my $sth = $s->db_Main->prepare_cached( $sql );
   $sth->execute( @vals, $s->id );
   $sth->finish();
@@ -443,6 +454,11 @@ sub delete
     DELETE FROM @{[ $s->table ]}
     WHERE @{[ $s->primary_column ]} = ?
 
+  if( $s->_meta->trace )
+  {
+    my $class = ref($s) || $s;
+    cluck "$class: delete($sql, values[" . $s->id . "])\n";
+  }# end if()
   my $sth = $s->db_Main->prepare_cached( $sql );
   $sth->execute( $s->id );
   $sth->finish();
@@ -493,6 +509,12 @@ sub retrieve_from_sql
   
   $sql = "SELECT @{[ join ', ', $s->columns('Essential') ]} " . 
          "FROM @{[ $s->table ]}" . ( $sql ? " WHERE $sql " : "" );
+
+  if( $s->_meta->trace )
+  {
+    my $class = ref($s) || $s;
+    cluck "$class: search*($sql, values[" . join( ",", map {qq('$_')} @bind) . "])";
+  }# end if()
   SCOPE: {
     my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( @bind );
@@ -586,6 +608,11 @@ sub count_search
   my @sql_vals  = map { $args{$_} } sort keys(%args);
   $sql .= join ' AND ', @sql_parts;
   
+  if( $s->_meta->trace )
+  {
+    my $class = ref($s) || $s;
+    cluck "$class: count_search($sql, values[" . join( ",", map {qq('$_')} @sql_vals) . "])";
+  }# end if()
   SCOPE: {
     my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( @sql_vals );
@@ -623,6 +650,11 @@ sub count_search_like
   my @sql_vals  = map { $args{$_} } sort keys(%args);
   $sql .= join ' AND ', @sql_parts;
   
+  if( $s->_meta->trace )
+  {
+    my $class = ref($s) || $s;
+    cluck "$class: count_search_like($sql, values[" . join( ",", map {qq('$_')} @sql_vals) . "])";
+  }# end if()
   SCOPE: {
     my $sth = $s->db_Main->prepare_cached( $sql );
     $sth->execute( @sql_vals );
@@ -770,6 +802,11 @@ sub count_search_where
   }# end if()
   
   my $sql = "SELECT COUNT(*) FROM @{[ $s->table ]} $phrase";
+  if( $s->_meta->trace )
+  {
+    my $class = ref($s) || $s;
+    cluck "$class: count_search_where($sql, values[" . join( ",", map {qq('$_')} @bind) . "])";
+  }# end if()
   SCOPE: {
     my $sth = $s->db_Main->prepare_cached($sql);
     $sth->execute( @bind );
@@ -845,11 +882,6 @@ sub has_many
       $fk => $s->id,
     );
   };
-  
-#  $class->add_trigger( after_delete => sub {
-#    my $s = shift;
-#    $_->delete foreach $s->$method;
-#  });
 }# end has_many()
 
 
@@ -1015,16 +1047,31 @@ sub load_class
 
 
 #==============================================================================
+sub trace
+{
+  my $s = shift;
+  $s->_meta->trace( @_ );
+}# end trace()
+
+
+#==============================================================================
 sub _flesh_out
 {
   my $s = shift;
   
   my @missing_fields = grep { ! exists($s->{$_}) } $s->columns('All');
-  my $sth = $s->db_Main->prepare(<<"");
+  my $sql = <<"";
     SELECT @{[ join ', ', @missing_fields ]}
     FROM @{[ $s->table ]}
     WHERE @{[ $s->primary_column ]} = ?
 
+  my $sth = $s->db_Main->prepare($sql);
+
+  if( $s->_meta->trace )
+  {
+    my $class = ref($s) || $s;
+    cluck "$class: flesh_out($sql, values[" . $s->id . "])";
+  }# end if()
   $sth->execute( $s->id );
   my $rec = $sth->fetchrow_hashref;
   $sth->finish();
@@ -1163,6 +1210,25 @@ We get this:
 
   print join ", ", My::Artist->columns;
   # artist_id, name
+
+=head2 trace( 1:0 )
+
+(New in version 1.018)
+
+Setting C<trace> to 1 or 0 will turn on or off SQL logging to STDERR.
+
+Example:
+
+  # Start seeing all the SQL:
+  My::User->trace( 1 );
+  
+  # We will see some SQL when the next line is executed:
+  my @users = My::User->search_like( name => 'Rob%' );
+  
+  # Turn it off again:
+  My::User->trace( 0 );
+
+By default, C<trace> is turned off.
 
 =head1 STATIC METHODS
 

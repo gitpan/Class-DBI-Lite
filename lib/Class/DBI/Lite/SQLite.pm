@@ -22,6 +22,30 @@ sub set_up_table
 
 
 #==============================================================================
+sub get_tables
+{
+  my ($s, $schema) = @_;
+  
+  local $s->db_Main->{AutoCommit};
+  my $sth = $s->db_Main->prepare(<<"");
+select name
+from sqlite_master
+where type = 'table'
+order by name
+
+  $sth->execute();
+  my @out = ( );
+  while( my ($name) = $sth->fetchrow )
+  {
+    push @out, $name;
+  }# end while()
+  $sth->finish();
+  
+  @out ? return @out : return;
+}# end get_tables()
+
+
+#==============================================================================
 sub get_meta_columns
 {
   my ($s, $schema, $table) = @_;

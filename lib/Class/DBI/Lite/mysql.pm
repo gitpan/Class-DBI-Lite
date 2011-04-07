@@ -22,6 +22,32 @@ sub set_up_table
 
 
 #==============================================================================
+sub get_tables
+{
+  my ($s, $schema) = @_;
+  
+  ($schema) = $schema =~ m/DBI\:mysql\:([^:]+)/;
+  
+  my $sth = $s->db_Main->prepare(<<"");
+select table_name
+from information_schema.tables
+where table_schema = ?
+and table_type = 'BASE TABLE'
+
+  $sth->execute( $schema );
+  
+  my @out = ( );
+  while( my ($name) = $sth->fetchrow )
+  {
+    push @out, $name;
+  }# end while()
+  $sth->finish();
+  
+  @out ? return @out : return;
+}# end get_tables()
+
+
+#==============================================================================
 sub get_meta_columns
 {
   my ($s, $schema, $table) = @_;
