@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.018';
+our $VERSION = '1.019';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -1127,7 +1127,7 @@ and your other classes define interaction with one table each (your B<entity> cl
 
 The Entity classes subclass the Model class and automatically inherit its connection.
 
-C<Class::DBI::Lite> relies heavily on L<Ima::DBI>, L<SQL::Abstract> and L<Scalar::Util>.
+C<Class::DBI::Lite> relies heavily on L<Ima::DBI::Contextual>, L<SQL::Abstract> and L<Scalar::Util>.
 
 C<Class::DBI::Lite> does not leak memory and is well-suited for use within mod_perl, Fast CGI, CGI
 and anywhere else you might need it.
@@ -1170,7 +1170,7 @@ boring, repetitive, "boiler-plate" SQL.
 
 Sets the DSN for your classes.
 
-  package My::Model;
+  package app::model;
   
   use base 'Class::DBI::Lite::mysql';
   
@@ -1182,8 +1182,8 @@ Returns the active database handle in use by the class.
 
 Example:
 
-  my $dbh = My::Artist->db_Main;
-  my $sth = $dbh->prepare("SELECT * FROM artists");
+  my $dbh = app::artist->db_Main;
+  my $sth = $dbh->prepare("select * from artists");
   $sth->execute();
   ...
 
@@ -1193,7 +1193,7 @@ Returns the name of the table that the class is assigned to.
 
 Example:
 
-  print My::Artist->table; # 'artists'
+  print app::artist->table; # 'artists'
 
 =head2 columns
 
@@ -1208,7 +1208,7 @@ Given the following table:
 
 We get this:
 
-  print join ", ", My::Artist->columns;
+  print join ", ", app::artist->columns;
   # artist_id, name
 
 =head2 trace( 1:0 )
@@ -1220,13 +1220,13 @@ Setting C<trace> to 1 or 0 will turn on or off SQL logging to STDERR.
 Example:
 
   # Start seeing all the SQL:
-  My::User->trace( 1 );
+  app::artist->trace( 1 );
   
   # We will see some SQL when the next line is executed:
-  my @users = My::User->search_like( name => 'Rob%' );
+  my @users = app::artist->search_like( name => 'Rob%' );
   
   # Turn it off again:
-  My::User->trace( 0 );
+  app::artist->trace( 0 );
 
 By default, C<trace> is turned off.
 
@@ -1238,7 +1238,7 @@ Creates a new object and returns it.
 
 Example:
 
-  my $artist = My::Artist->create( name => 'Bob Marley' );
+  my $artist = app::artist->create( name => 'Bob Marley' );
 
 =head2 find_or_create( %info )
 
@@ -1247,7 +1247,7 @@ a new record will be created using C<%info> as arguments.
 
 Example:
 
-  my $artist = My::Artist->find_or_create( name => 'Bob Marley' );
+  my $artist = app::artist->find_or_create( name => 'Bob Marley' );
 
 =head2 retrieve( $id )
 
@@ -1255,7 +1255,7 @@ Given the id of a record in the database, returns that object.
 
 Example:
 
-  my $artist = My::Artist->retrieve( 1 );
+  my $artist = app::artist->retrieve( 1 );
 
 Same as the following SQL:
 
@@ -1269,7 +1269,7 @@ Returns all objects in the database table.
 
 Example:
 
-  my @artists = My::Artist->retrieve_all;
+  my @artists = app::artist->retrieve_all;
 
 Same as the following SQL:
 
@@ -1278,7 +1278,7 @@ Same as the following SQL:
 B<NOTE:> If you want to sort all of the records or do paging, use C<search_where>
 like this:
 
-  my @artists = My::Artist->search_where({ 1 => 1}, {order_by => 'name DESC'});
+  my @artists = app::artist->search_where({ 1 => 1}, {order_by => 'name DESC'});
 
 Same as the following SQL:
 
@@ -1293,11 +1293,11 @@ That "C<WHERE 1 = 1>" is a funny way of telling the database "give them all to m
 
 Declares a "one-to-many" relationship between this two classes.
 
-  package My::Artist;
+  package app::artist;
   ...
   __PACKAGE__->has_many(
     albums  =>
-      'My::Album' =>
+      'app::album' =>
         'album_id'
   );
 
@@ -1306,7 +1306,7 @@ The syntax is:
   __PACKAGE__->has_many(
     $what_they_are_called =>
       $the_class_name =>
-        $their_field_name_that_contains_my_primary_column's_value
+        $the_foreign_key_field_from_the_other_class
   );
 
 The result is this:
@@ -1316,7 +1316,7 @@ The result is this:
 
 That's the same as:
 
-  my @albums = My::Album->search(
+  my @albums = app::artist->search(
     artist_id => $artist->id
   );
 
@@ -1326,6 +1326,24 @@ Declares that instances "this" class exists only as a feature of instances of an
 
 For example, "songs" exist as features of "albums" - not the other way around.
 
+Example:
+
+  package app::album;
+  ...
+  __PACKAGE__->belongs_to(
+    artist  =>
+      'app::artist' =>
+        'artist_id'
+  );
+
+So that's:
+
+  __PACKAGE__->belongs_to(
+    $the_method_name =>
+      $the_class_name =>
+        $my_foreign_key_field
+  );
+
 =head2 construct( $hashref )
 
 Blesses the object into the given class, even if we don't have all the information
@@ -1334,7 +1352,7 @@ about the object (as long as we get its primary field value).
 Example:
 
   for( 1..5 ) {
-    my $artist = My::Artist->construct({ artist_id => $_ });
+    my $artist = app::artist->construct({ artist_id => $_ });
     
     # name is automatically "fleshed out":
     print $artist->name;
@@ -1348,10 +1366,10 @@ Example:
 
   # Safely update the name of every album:
   eval {
-    My::Artist->do_transaction( sub {
+    app::artist->do_transaction( sub {
     
       # Your transaction code goes here:
-      my $artist = My::Artist->retrieve( 1 );
+      my $artist = app::artist->retrieve( 1 );
       foreach my $album ( $artist->albums ) {
         $album->name( $artist->name . ': ' . $album->name );
         $album->update;
@@ -1373,9 +1391,9 @@ Returns any objects that match all elements in C<%args>.
 
 Example:
 
-  my @artists = My::Artist->search( name => 'Bob Marley' );
+  my @artists = app::artist->search( name => 'Bob Marley' );
   
-  my $artist_iterator = My::Artist->search( name => 'Bob Marley' );
+  my $artist_iterator = app::artist->search( name => 'Bob Marley' );
 
 Returns an array in list context or a L<Class::DBI::Lite::Iterator> in scalar context.
 
@@ -1385,9 +1403,9 @@ Returns any objects that match all elements in C<%args> using the C<LIKE> operat
 
 Example:
 
-  my @artists = My::Artist->search_like( name => 'Bob%' );
+  my @artists = app::artist->search_like( name => 'Bob%' );
   
-  my $artist_iterator = My::Artist->search_like( name => 'Bob%' );
+  my $artist_iterator = app::artist->search_like( name => 'Bob%' );
 
 Returns an array in list context or a L<Class::DBI::Lite::Iterator> in scalar context.
 
@@ -1403,7 +1421,7 @@ Returns an array in list context or a L<Class::DBI::Lite::Iterator> in scalar co
 
 Example 1:
 
-  my @artists = My::Artist->search_where({
+  my @artists = app::artist->search_where({
     name => 'Bob Marley'
   });
 
@@ -1415,7 +1433,7 @@ Same as this SQL:
 
 Example 2:
 
-  my @artists = My::Artist->search_where({
+  my @artists = app::artist->search_where({
     name => 'Bob Marley'
   }, {
     order_by => 'name ASC LIMIT 0, 10'
@@ -1431,7 +1449,7 @@ Same as this SQL:
 
 Example 3:
 
-  my @artists = My::Artist->search_where([
+  my @artists = app::artist->search_where([
     name => { '!=' => 'Bob Marley' },
     genre => 'Rock',
   ]);
@@ -1452,7 +1470,7 @@ Returns the number of records that match C<%args>.
 
 Example:
 
-  my $count = My::Album->count_search( name => 'Greatest Hits' );
+  my $count = app::album->count_search( name => 'Greatest Hits' );
 
 =head2 count_search_like( %args )
 
@@ -1460,7 +1478,7 @@ Returns the number of records that match C<%args> using the C<LIKE> operator.
 
 Example:
 
-  my $count = My::Artist->count_search_like(
+  my $count = app::artist->count_search_like(
     name  => 'Bob%'
   );
 
@@ -1470,11 +1488,11 @@ Returns the number of records that match C<\%args>.
 
 Examples:
 
-  my $count = My::Album->count_search_like({
+  my $count = app::album->count_search_like({
     name  => { LIKE => 'Best Of%' }
   });
   
-  my $count = My::Album->count_search_like({
+  my $count = app::album->count_search_like({
     genre => { '!=' => 'Country/Western' }
   });
 
@@ -1485,9 +1503,9 @@ as objects.
 
 Example:
 
-  my $sth = My::Artist->db_Main->prepare("SELECT * FROM artists");
+  my $sth = app::artist->db_Main->prepare("SELECT * FROM artists");
   $sth->execute();
-  my @artists = My::Artist->sth_to_objects( $sth );
+  my @artists = app::artist->sth_to_objects( $sth );
 
 This method is very useful for when your SQL query is too complicated for C<search_where()>.
 
@@ -1497,7 +1515,7 @@ Specifies a callback to be executed when a specific event happens.
 
 Examples:
 
-  package My::Artist;
+  package app::artist;
   ...
   __PACKAGE__->add_trigger( after_create => sub {
     my ($self) = @_;
@@ -1517,7 +1535,7 @@ the object's class and contains only the values that were provided for its creat
 
 So, given this trigger:
 
-  package My::Album;
+  package app::album;
   ...
   __PACKAGE__->add_trigger( before_create => sub {
     my ($self) = @_;
@@ -1527,7 +1545,7 @@ So, given this trigger:
 
 If we ran this code:
 
-  my $album = My::Album->create( name => 'Legend' );
+  my $album = app::album->create( name => 'Legend' );
 
 We would see this output:
 
@@ -1542,7 +1560,7 @@ Called just after a new record is created.  C<$self> is the new object itself.
 
 So given this trigger:
 
-  package My::Album;
+  package app::album;
   ...
   __PACKAGE__->add_trigger( after_create => sub {
     my ($self) = @_;
@@ -1552,7 +1570,7 @@ So given this trigger:
 
 If we ran this code:
 
-  my $album = My::Album->create( name => 'Legend' );
+  my $album = app::album->create( name => 'Legend' );
 
 We would see this output:
 
@@ -1565,7 +1583,7 @@ to be updated.
 
 Example:
 
-  package My::Album;
+  package app::album;
   ...
   __PACKAGE__->add_trigger( before_update => sub {
     my ($self) = @_;
@@ -1580,7 +1598,7 @@ that was updated.
 
 Example:
 
-  package My::Album;
+  package app::album;
   ...
   __PACKAGE__->add_trigger( after_update => sub {
     my ($self) = @_;
@@ -1599,7 +1617,7 @@ causes an update to be made which causes an update to be made which causes an up
 
 B<DO NOT DO THIS>:
 
-  package My::Album;
+  package app::album;
   ...
   __PACKAGE__->add_trigger( after_update => sub {
     my ($self) = @_;
@@ -1616,7 +1634,7 @@ Called just before something is deleted.
 
 Example:
 
-  package My::Album;
+  package app::album;
   ...
   __PACKAGE__->add_trigger( before_delete => sub {
     my ($self) = @_;
@@ -1633,7 +1651,7 @@ that is left is the id of the original object.
 
 So, given this trigger...
 
-  package My::Album;
+  package app::album;
   ...
   use Data::Dumper;
   __PACKAGE__->add_trigger( after_delete => sub {
@@ -1656,7 +1674,7 @@ Called just B<before> a field's value is updated.
 
 So, given the following trigger...
 
-  package My::Album;
+  package app::album;
   ...
   __PACKAGE__->add_trigger( before_update_name => sub {
     my ($self, $old_value, $new_value) = @_;
@@ -1666,7 +1684,7 @@ So, given the following trigger...
 
 ...called with the following code...
 
-  my $artist = My::Artist->create( name => 'Bob Marley' );
+  my $artist = app::artist->create( name => 'Bob Marley' );
   my $album = $artist->add_to_albums( name => 'Legend' );
   
   # Now change the name:
@@ -1683,7 +1701,7 @@ Called just B<after> a field's value is updated.
 
 So, given the following trigger...
 
-  package My::Album;
+  package app::album;
   ...
   __PACKAGE__->add_trigger( after_update_name => sub {
     my ($self, $old_value, $new_value) = @_;
@@ -1693,7 +1711,7 @@ So, given the following trigger...
 
 ...called with the following code...
 
-  my $artist = My::Artist->create( name => 'Bob Marley' );
+  my $artist = app::artist->create( name => 'Bob Marley' );
   my $album = $artist->add_to_albums( name => 'Legend' );
   
   # Now change the name:
@@ -1710,7 +1728,7 @@ Returns the name of the column, if the class has that column.
 
 Example:
 
-  if( My::Artist->find_column('name') ) {
+  if( app::artist->find_column('name') ) {
     warn "Artists have names!";
   }
 
@@ -1728,7 +1746,7 @@ So, given the following table structure:
 
 Here is the example:
 
-  my $info = My::Artist->get_table_info();
+  my $info = app::artist->get_table_info();
   
   my $column = $info->column('name');
   warn $column->name;           # 'name'
@@ -1745,6 +1763,8 @@ Here is the example:
     warn $column->length;
     warn $column->is_pk;
     ...
+    # If the column is an 'enum' field:
+    warn join ', ', @{ $column->enum_values };
   }
 
 =head2 pager( \%where, { order_by => 'fields ASC', page_number => 1, page_size => 10 } )
@@ -1754,7 +1774,7 @@ Returns a L<Class::DBI::Lite::Pager> object.
 Example:
 
   # Step 1: Get our pager:
-  my $pager = My::Artist->pager({
+  my $pager = app::artist->pager({
     name => { LIKE => 'Bob%' }
   }, {
     order_by    => 'name ASC',
@@ -1777,7 +1797,7 @@ Returns a L<Class::DBI::Lite::Pager> object.
 Example:
 
   # Step 1: Get our pager:
-  my $pager = My::Artist->sql_pager({
+  my $pager = app::artist->sql_pager({
     data_sql  => "SELECT * FROM artists WHERE name LIKE ?",
     count_sql => "SELECT COUNT(*) FROM artists WHERE name LIKE ?",
     sql_args  => [ 'Bob%' ],
@@ -1809,7 +1829,7 @@ So, given the following table structure:
 
 And the following class:
 
-  package My::Artist;
+  package app::artist;
   
   use strict;
   use warnings 'all';
@@ -1819,7 +1839,7 @@ And the following class:
   
   1;# return true:
 
-The C<My::Artist> class would have the following methods created:
+The C<app::artist> class would have the following methods created:
 
 =over 4
 
@@ -1880,7 +1900,7 @@ to be forgotten.
 
 Example:
 
-  my $artist = My::Artist->create( name => 'Bob Marley' );
+  my $artist = app::artist->create( name => 'Bob Marley' );
   $artist->name( 'Big Bob' );
   
   $artist->discard_changes;

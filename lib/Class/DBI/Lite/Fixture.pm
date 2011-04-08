@@ -41,12 +41,12 @@ Class::DBI::Lite::Fixture - Test fixtures for easy testing.
 
 =head2 In Your Test Fixture
 
-  package My::Fixtures;
+  package app::fixtures;
 
   use strict;
   use warnings 'all';
   use base 'Class::DBI::Lite::Fixture';
-  use My::State;
+  use app::state;
 
   my @state_info = qw( AL:Alabama AK:Alaska AR:Arkansas );
   my @states = ( );
@@ -54,9 +54,9 @@ Class::DBI::Lite::Fixture - Test fixtures for easy testing.
   sub setup_states {
     push @states, map {
       my ($abbr, $name) = split /\:/, $_;
-      My::State->find_or_create(
-        state_name  => $name,
-        state_abbr  => $abbr,
+      app::state->find_or_create(
+        name  => $name,
+        abbr  => $abbr,
       )
     } @state_info;
   }# end setup_states()
@@ -75,14 +75,14 @@ Class::DBI::Lite::Fixture - Test fixtures for easy testing.
   use lib qw( lib t/lib );
   
   # Setup your test fixtures:
-  use My::Fixtures 'states';
+  use app::fixtures 'states';
   
-  use_ok('My::State');
+  use_ok('app::state');
   is(
-    My::State->count_search(state_abbr => 'AL') => 1
+    app::state->count_search(abbr => 'AL') => 1
   );
   
-  # The 'My::State' records are automatically deleted in 'destroy_states'!
+  # The 'app::state' records are automatically deleted in 'destroy_states'!
 
 =head1 DESCRIPTION
 

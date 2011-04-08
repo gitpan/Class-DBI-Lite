@@ -108,14 +108,14 @@ Class::DBI::Lite::CacheManager::Memcached - Cache via memcached.
 
 =head1 SYNOPSIS
 
-  package My::City;
+  package app::user;
   
   use strict;
   use warnings 'all';
-  use base 'My::Model';
+  use base 'app::model';
   use Class::DBI::Lite::CacheManager::Memcached;
   
-  __PACKAGE__->set_up_table('cities');
+  __PACKAGE__->set_up_table('users');
   
   __PACKAGE__->set_cache(
     Class::DBI::Lite::CacheManager::Memcached->new(
@@ -134,7 +134,7 @@ Class::DBI::Lite::CacheManager::Memcached - Cache via memcached.
 Then, someplace else...
 
   # This will be cached...
-  my ($user) = My::User->search(
+  my ($user) = app::user->search(
     email     => 'alice@wonderland.net',
     password  => 'whiterabbit',
   );
@@ -142,7 +142,7 @@ Then, someplace else...
 ...later...
 
   # This won't hit the database - the result will come from the cache instead:
-  my ($user) = My::User->search(
+  my ($user) = app::user->search(
     email     => 'alice@wonderland.net',
     password  => 'whiterabbit',
   );

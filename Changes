@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.019   2011-04-08
+  - Updated POD to use the new lowercase classname standard - as in .NET's Entity Framework.
+
 1.018   2011-04-07
   - Added ->trace( 1:0 ) to enable/disable SQL logging to STDERR via Carp::cluck.
 

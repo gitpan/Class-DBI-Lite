@@ -199,7 +199,7 @@ Class::DBI::Lite::Pager - Page through your records, easily.
 =head2 Paged Navigation Through Large Datasets
 
   # Say we're on page 1 of a list of all 'Rock' artists:
-  my $pager = My::Artist->pager({
+  my $pager = app::artist->pager({
     genre => 'Rock',
   }, {
     order_by    => 'name ASC',
@@ -208,7 +208,7 @@ Class::DBI::Lite::Pager - Page through your records, easily.
   });
 
   # -------- OR -----------
-  my $pager = My::Artist->sql_pager({
+  my $pager = app::artist->sql_pager({
     data_sql  => "SELECT * FROM artists WHERE genre = ?",
     count_sql => "SELECT COUNT(*) FROM artists WHERE genre = ?",
     sql_args  => [ 'Rock' ],
@@ -244,7 +244,7 @@ Class::DBI::Lite::Pager - Page through your records, easily.
 =head2 Fetch Huge Datasets in Small Chunks
 
   # Fetch 300,000,000 records, 100 records at a time:
-  my $pager = My::Human->pager({
+  my $pager = app::citizen->pager({
     country => 'USA'
   }, {
     order_by    => 'last_name, first_name',
@@ -252,7 +252,7 @@ Class::DBI::Lite::Pager - Page through your records, easily.
     page_number => 1,
   });
   while( my @people = $pager->next_page ) {
-    # We only got 100 people, instead of killing the 
+    # We only got 100 people, instead of swamping the 
     # database by asking for 300M records all at once:
   }
 
@@ -346,7 +346,7 @@ Ready?  Good.
 
 Say you have a C<$pager>:
 
-  my $pager = My::Albums->pager(undef, {
+  my $pager = app::album->pager(undef, {
     page_size => 10,
     page_number => 1,
   });

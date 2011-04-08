@@ -31,6 +31,7 @@ sub new
 
 sub null { $_[0]->{is_nullable} }
 sub default { $_[0]->{default_value} }
+sub enum_values { shift->{enum_values} }
 
 
 #==============================================================================
@@ -56,7 +57,7 @@ Class::DBI::Lite::ColumnInfo - Extended meta-information about database table fi
 
 =head1 SYNOPSIS
 
-  foreach my $field ( My::User->columns )
+  foreach my $field ( app::artist->columns )
   {
   
   }# end foreach()
@@ -96,6 +97,11 @@ Returns true if the field is a primary key field.  False otherwise.
 =head2 key
 
 Returns either C<undef>, C<primary_key> or C<unique>.
+
+=head2 enum_values
+
+ONLY if the column is an C<enum> data type, this property will return an arraref 
+of the possible enum values.
 
 =head1 BUGS
 

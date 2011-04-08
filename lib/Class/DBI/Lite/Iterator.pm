@@ -61,13 +61,13 @@ Class::DBI::Lite::Iterator - Simple iterator for Class::DBI::Lite
 =head1 SYNOPSIS
 
   # Get an iterator somehow:
-  my $iter = My::User->retrieve_all;
+  my $iter = app::artist->retrieve_all;
   
-  my $user = $iter->first;
+  my $artist = $iter->first;
   
   my $record_count = $iter->count;
   
-  while( my $user = $iter->next )
+  while( my $artist = $iter->next )
   {
     ...
   }# end while()
