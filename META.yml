@@ -10,7 +10,7 @@ distribution_type:   module
 requires:     
     DBD::SQLite:                   0
     DBI:                           0
-    Ima::DBI::Contextual:          0
+    Ima::DBI::Contextual:          1.001
     SQL::Abstract:                 0
     SQL::Abstract::Limit:          0
     Test::Memory::Cycle:           0

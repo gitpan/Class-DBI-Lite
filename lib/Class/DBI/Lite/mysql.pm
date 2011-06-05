@@ -155,5 +155,19 @@ sub get_last_insert_id
   $_[0]->db_Main->{mysql_insertid};
 }# end get_last_insert_id()
 
+
+sub lock_table
+{
+  my ($s, $table) = @_;
+  
+  $s->db_Main->do("lock tables $table read");
+}# end lock_table()
+
+
+sub unlock_table
+{
+  shift->db_Main->do("unlock tables");
+}# end unlock_table()
+
 1;# return true:
 

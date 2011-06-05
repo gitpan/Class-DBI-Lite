@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.019';
+our $VERSION = '1.020';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -388,7 +388,7 @@ sub do_transaction
   else
   {
     # Success:
-    $s->commit;
+    $s->dbi_commit;
     return $res;
   }# end if()
 }# end do_transaction()
@@ -823,12 +823,28 @@ sub find_or_create
 {
   my ($s, %args) = @_;
   
-  if( my ($obj) = $s->search( %args ) )
+  my $result = eval {
+    $s->do_transaction(sub {
+#      $s->lock_table( $s->table );
+      
+      if( my ($obj) = $s->search( %args ) )
+      {
+#        $s->unlock_table( $s->table );
+        return $obj;
+      }# end if()
+      
+      my $obj = $s->create( %args );
+#      $s->unlock_table( $s->table );
+      return $obj;
+    });
+  };
+  if( $@ )
   {
-    return $obj;
+    die $@;
+#    $s->unlock_table( $s->table );
   }# end if()
   
-  return $s->create( %args );
+  return $result;
 }# end find_or_create()
 
 
@@ -969,7 +985,7 @@ sub dbi_commit
 {
   my $s = shift;
   return if $s->db_Main->{AutoCommit};
-  $s->SUPER::commit( @_ );
+  $s->db_Main->commit( @_ );
 }# end dbi_commit()
 
 
@@ -1012,7 +1028,7 @@ sub as_hashref
 sub dbi_rollback
 {
   my $s = shift;
-  $s->SUPER::rollback( @_ );
+  $s->db_Main->rollback( @_ );
 }# end dbi_rollback()
 
 
@@ -1104,6 +1120,10 @@ sub DESTROY
     bool      => sub { undef },
     fallback  => 1;
 }
+
+
+sub lock_table;
+sub unlock_table;
 
 1;# return true:
 

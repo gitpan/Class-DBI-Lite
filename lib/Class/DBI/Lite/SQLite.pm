@@ -128,5 +128,8 @@ sub get_last_insert_id
   $_[0]->db_Main->func('last_insert_rowid');
 }# end get_last_insert_id()
 
+sub lock_table { }
+sub unlock_table { }
+
 1;# return true:
 
