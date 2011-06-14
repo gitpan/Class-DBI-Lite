@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.021   2011-06-14
+  - Upgrade Recommended!!
+  - BUG FIX: `before_update` triggers which caused changes to an object did not get those
+    changes saved as part of the final update.
+
 1.020   2011-06-05
   - Updates to work with changes in the public interface of Ima::DBI::Contextual.
   - No other changes.

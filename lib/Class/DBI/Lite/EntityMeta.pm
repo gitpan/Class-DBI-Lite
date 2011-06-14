@@ -1,5 +1,6 @@
 
-package Class::DBI::Lite::EntityMeta;
+package 
+Class::DBI::Lite::EntityMeta;
 
 use strict;
 use warnings 'all';

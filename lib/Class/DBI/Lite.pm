@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.020';
+our $VERSION = '1.021';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -404,13 +404,12 @@ sub update
   
   $s->_call_triggers( before_update => $s );
   
-  my $changed = delete( $s->{__Changed} );
-  $s->{__Changed} = { };
-  
+  my $changed = $s->{__Changed};
   foreach my $field ( grep { $changed->{$_} } sort keys(%$s) )
   {
     $s->_call_triggers( "before_update_$field", $changed->{$field}->{oldval}, $s->{$field} );
   }# end foreach()
+  
   
   # Make our SQL:
   my @fields  = map { "$_ = ?" } grep { $changed->{$_} } sort keys(%$s);

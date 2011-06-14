@@ -1,5 +1,6 @@
 
-package Class::DBI::Lite::RootMeta;
+package 
+Class::DBI::Lite::RootMeta;
 
 use strict;
 use warnings 'all';

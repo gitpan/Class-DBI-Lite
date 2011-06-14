@@ -1,5 +1,6 @@
 
-package Class::DBI::Lite::Dataset;
+package 
+Class::DBI::Lite::Dataset;
 
 use strict;
 use warnings 'all';

@@ -1,5 +1,6 @@
 
-package Class::DBI::Lite::AdHocEntity;
+package 
+Class::DBI::Lite::AdHocEntity;
 
 use strict;
 use warnings 'all';

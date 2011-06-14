@@ -83,8 +83,7 @@ sub get_meta_columns
     Essential => \@cols,
     All       => \@cols,
   };
-  1;
-}# end set_up_table()
+}# end get_meta_columns()
 
 
 #==============================================================================
