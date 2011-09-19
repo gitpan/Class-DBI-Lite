@@ -30,9 +30,9 @@ First you must subclass C<Class::DBI::Lite::*> and define your database connecti
 
 =head3 Your 'Model' Class:
 
-File C<lib/app/model.pm>
+File C<lib/App/db/model.pm>
 
-  package app::model;
+  package App::db::model;
   
   use strict;
   use warnings 'all';
@@ -46,39 +46,39 @@ File C<lib/app/model.pm>
 
 =head3 Your 'Entity' Classes:
 
-File C<lib/app/artist.pm>
+File C<lib/App/db/artist.pm>
 
-  package app::artist;
+  package App::db::artist;
   
   use strict;
   use warnings 'all';
-  use base 'app::model';
+  use base 'App::db::model';
   
   __PACKAGE__->set_up_table('artists');
   
   # Artists have many Albums, referenced by the field 'artist_id':
   __PACKAGE__->has_many(
     albums  =>
-      'app::album' =>
+      'App::db::album' =>
         'artist_id'
   );
   
   1;# return true:
 
-File C<lib/app/album.pm>
+File C<lib/App/db/album.pm>
 
-  package app::album;
+  package App::db::album;
   
   use strict;
   use warnings 'all';
-  use base 'app::model';
+  use base 'App::db::model';
   
   __PACKAGE__->set_up_table('albums');
   
   # Albums have an artist, referenced by the field 'artist_id'
   __PACKAGE__->belongs_to(
     artist  =>
-      'app::artist'  =>
+      'App::db::artist'  =>
         'artist_id'
   );
   
@@ -93,8 +93,8 @@ Using C<Class::DBI::Lite> is simple.
   use strict;
   use warnings 'all';
   
-  use app::artist;
-  use app::album;
+  use App::db::artist;
+  use App::db::album;
 
   # Now you're all set!
 
@@ -131,14 +131,14 @@ So in our example we say:
   # Artists have many Albums, referenced by the field 'artist_id':
   __PACKAGE__->has_many(
     albums  =>
-      'app::album' =>
+      'App::db::album' =>
         'artist_id'
   );
 
 Which means that given an instance of C<My::Artist> you can do this:
 
   # Fetch the artist:
-  my $artist = app::artist->retrieve( 1 );
+  my $artist = App::db::artist->retrieve( 1 );
   
   # Fetch the artist's albums:
   my @albums = $artist->albums;
@@ -199,7 +199,7 @@ That example would look like this if we were doing it with hand-coded SQL statem
 =head3 Creating
 
   # Create an artist:
-  my $artist = app::artist->create( name => 'Bob Marley' );
+  my $artist = App::db::artist->create( name => 'Bob Marley' );
   
   # These both do the same:
   print $artist->id;
@@ -212,13 +212,13 @@ method in scalar context returns an iterator.
 
 B<List Context>:
 
-  my @albums = app::album->search( name => 'Legend' );
+  my @albums = App::db::album->search( name => 'Legend' );
 
   my @albums = $artist->albums;
 
 B<Scalar Context>:
 
-  my $albums = app::album->search( name => 'Legend' );
+  my $albums = App::db::album->search( name => 'Legend' );
   
   my $albums = $artist->albums;
 
@@ -241,8 +241,8 @@ Returns all results as objects of the correct type:
 
 B<Basic Searching>
 
-  my @albums = app::album->search( name => 'Legend' );
-  my @albums = app::album->search(
+  my @albums = App::db::album->search( name => 'Legend' );
+  my @albums = App::db::album->search(
     artist_id => $artist->id,
   );
 
@@ -250,15 +250,15 @@ B<Advanced Searching>
 
 Advanced searching takes 1 or 2 parameters:
 
-  app::album->search_where( { <args> }, [<order_by and limits>] );
+  App::db::album->search_where( { <args> }, [<order_by and limits>] );
 
 Examples:
 
-  my @albums = app::album->search_where({
+  my @albums = App::db::album->search_where({
     artist_id => { IN => [ 1, 2, 3 ] }
   });
   
-  my @albums = app::album->search_where({
+  my @albums = App::db::album->search_where({
     name  => { LIKE => 'Lege%' }
   }, {
     order_by => 'name DESC LIMIT 0, 10'
@@ -270,11 +270,11 @@ C<search_where> uses L<SQL::Abstract> to generate the SQL, so look there for mor
 
 Sometimes you just need to know how many records match your query:
 
-  my $count = app::album->count_search( name => 'Bob Marley' );
+  my $count = App::db::album->count_search( name => 'Bob Marley' );
 
 Using C<count_where> you can make more interesting queries:
 
-  my $count = app::album->count_search_where({
+  my $count = App::db::album->count_search_where({
     name  => { LIKE => 'Legen%' },
     artist_id => { IN => [ 1, 2, 3 ] }
   });
@@ -285,7 +285,7 @@ C<count_search_where> uses L<SQL::Abstract> to generate the SQL, so look there f
 
 Example:
 
-  my $artist = app::artist->create( name => 'Bob Marley' );
+  my $artist = App::db::artist->create( name => 'Bob Marley' );
   
   # Change the name:
   $artist->name( 'Bob' );
@@ -378,7 +378,7 @@ Sometimes you just want to add a trigger to a specific field.
 
 =head3 before_update_<fieldname>
 
-  package app::artist;
+  package App::db::artist;
   ...
   __PACKAGE__->add_trigger( before_update_name => sub {
     my ($self, $old_value, $new_value) = @_;
@@ -388,7 +388,7 @@ Sometimes you just want to add a trigger to a specific field.
 
 =head3 after_update_<fieldname>
 
-  package app::artist;
+  package App::db::artist;
   ...
   __PACKAGE__->add_trigger( after_update_name => sub {
     my ($self, $old_value, $new_value) = @_;
@@ -402,10 +402,10 @@ This is how transactions are done with C<Class::DBI::Lite>:
 
   # Safely update the name of every album:
   eval {
-    app::artist->do_transaction( sub {
+    App::db::artist->do_transaction( sub {
     
       # Your transaction code goes here:
-      my $artist = app::artist->retrieve( 1 );
+      my $artist = App::db::artist->retrieve( 1 );
       foreach my $album ( $artist->albums ) {
         $album->name( $artist->name . ': ' . $album->name );
         $album->update;
@@ -425,7 +425,7 @@ This is how transactions are done with C<Class::DBI::Lite>:
 
 You can get the normal database handle by calling C<db_Main> on any of your classes.
 
-  my $dbh = app::artist->db_Main;
+  my $dbh = App::db::artist->db_Main;
 
 =head2 Custom SQL Queries:
 
@@ -433,13 +433,13 @@ You can call the C<sth_to_objects> method to convert a prepared statement into
 objects of a pre-defined type:
 
   # Step 1: Prepare the statement:
-  my $sth = app::artist->db_Main->prepare("SELECT * FROM artists WHERE name LIKE ?");
+  my $sth = App::db::artist->db_Main->prepare("SELECT * FROM artists WHERE name LIKE ?");
   
   # Step 2: Execute the statement:
   $sth->execute( 'Bob%' );
   
   # Step 3: Call sth_to_objects:
-  my @artists = app::artist->sth_to_objects( $sth );
+  my @artists = App::db::artist->sth_to_objects( $sth );
 
 =head1 ADVANCED TOPICS
 

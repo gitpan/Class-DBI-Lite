@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.022   2011-09-19
+  - POD change from app::* to App::db::* namespace.
+
 1.021   2011-06-14
   - Upgrade Recommended!!
   - BUG FIX: `before_update` triggers which caused changes to an object did not get those
