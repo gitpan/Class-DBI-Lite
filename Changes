@@ -1,5 +1,11 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.023   2011-10-27
+  - Now if you want to override the default 'getter' or 'setter' behavior for a
+    field in your objects, you can do so by defining _set_foo( $self, $val ) or
+    _get_foo( $self ).
+  - Thanks Eric for the idea!  ehayes.inflection++
+
 1.022   2011-09-19
   - POD change from app::* to App::db::* namespace.
 

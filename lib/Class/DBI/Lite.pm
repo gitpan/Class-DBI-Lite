@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.022';
+our $VERSION = '1.023';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -158,13 +158,10 @@ sub _init_meta
   # Install the column accessors:
   foreach my $col ( grep { $_ ne $pk } $class->columns )
   {
-    *{"$class\::$col"} = sub {
-      my $s = shift;
-      
-      exists($s->{$col}) or $s->_flesh_out;
-      if( @_ )
-      {
-        my $newval = shift;
+    my $setter = "_set_$col";
+    my $getter = "_get_$col";
+    *{"$class\::$setter"} = sub {
+      my ($s, $newval) = @_;
         no warnings 'uninitialized';
         return $newval if $newval eq $s->{$col};
         $s->_call_triggers( "before_set_$col", $s->{$col}, $newval );
@@ -172,11 +169,16 @@ sub _init_meta
           oldval => $s->{$col}
         };
         return $s->{$col} = $newval;
-      }
-      else
-      {
-        return $s->{$col};
-      }# end if()
+    };
+    *{"$class\::$getter"} = sub {
+      shift->{$col};
+    };
+    
+    *{"$class\::$col"} = sub {
+      my $s = shift;
+      
+      exists($s->{$col}) or $s->_flesh_out;
+      @_ ? $s->$setter( @_ ) : $s->$getter( @_ );
     };
   }# end foreach()
 }# end _init_meta()
@@ -1884,6 +1886,15 @@ To save those changes to the database you must call C<update>:
   $artist->update;
 
 =back
+
+=head2 Overriding Setters and Getters
+
+The accessors/mutators ("setters" and "getters") can be individually overridden
+within your entity class by implementing C<_set_foo($self, $value)> or
+C<_get_foo($self)> methods.
+
+B<NOTE:> In practice this may be more useful for the C<_get_*> methods, as the C<_set_*>
+methods are usually best left to triggers.
 
 =head2 id
 
