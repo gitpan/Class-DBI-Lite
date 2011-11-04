@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.024   2011-11-04
+  - Calling sth_to_objects(...) would return a list with a single 'undef' element
+    instead of returning nothing when no results were found.
+
 1.023   2011-10-27
   - Now if you want to override the default 'getter' or 'setter' behavior for a
     field in your objects, you can do so by defining _set_foo( $self, $val ) or

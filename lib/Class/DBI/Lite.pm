@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.023';
+our $VERSION = '1.024';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -170,6 +170,7 @@ sub _init_meta
         };
         return $s->{$col} = $newval;
     };
+    
     *{"$class\::$getter"} = sub {
       shift->{$col};
     };
@@ -538,21 +539,7 @@ sub sth_to_objects
   }# end while()
   $sth->finish();
   
-  
-  if( wantarray )
-  {
-    return unless @vals;
-    return map { $class->construct( $_ ) } @vals;
-  }
-  else
-  {
-    my $iter = Class::DBI::Lite::Iterator->new(
-      [
-        map { $class->construct( $_ ) } @vals
-      ]
-    );
-    return $iter;
-  }# end if()
+  return $s->_prepare_result( @ vals );
 }# end sth_to_objects()
 
 
@@ -826,23 +813,19 @@ sub find_or_create
   
   my $result = eval {
     $s->do_transaction(sub {
-#      $s->lock_table( $s->table );
       
       if( my ($obj) = $s->search( %args ) )
       {
-#        $s->unlock_table( $s->table );
         return $obj;
       }# end if()
       
       my $obj = $s->create( %args );
-#      $s->unlock_table( $s->table );
       return $obj;
     });
   };
   if( $@ )
   {
     die $@;
-#    $s->unlock_table( $s->table );
   }# end if()
   
   return $result;
@@ -1114,7 +1097,8 @@ sub DESTROY
 
 {
   # This is deleted-object-heaven:
-  package Class::DBI::Lite::Object::Has::Been::Deleted;
+  package
+    Class::DBI::Lite::Object::Has::Been::Deleted;
 
   use overload 
     '""'      => sub { '' },
