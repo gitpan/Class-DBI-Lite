@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.024';
+our $VERSION = '1.025';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -1493,13 +1493,16 @@ Returns the number of records that match C<\%args>.
 
 Examples:
 
-  my $count = App::db::album->count_search_like({
+  my $count = App::db::album->count_search_where({
     name  => { LIKE => 'Best Of%' }
   });
   
-  my $count = App::db::album->count_search_like({
+  my $count = App::db::album->count_search_where({
     genre => { '!=' => 'Country/Western' }
   });
+
+As with C<search_where()>, the C<count_search_where()> class method uses L<SQL::Abstract>
+to generate the SQL for the database.
 
 =head2 sth_to_objects( $sth )
 

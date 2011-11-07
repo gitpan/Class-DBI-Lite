@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.025   2011-11-07
+  - Fixed POD for count_search_where.  (ray.baksh++)
+
 1.024   2011-11-04
   - Calling sth_to_objects(...) would return a list with a single 'undef' element
     instead of returning nothing when no results were found.
