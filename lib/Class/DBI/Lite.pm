@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.025';
+our $VERSION = '1.026';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -371,7 +371,8 @@ sub do_transaction
   my ($s, $code) = @_;
   
   local $s->db_Main->{AutoCommit};
-  my $res = eval { $code->( ) };
+  my ($res, @res);
+  wantarray ? @res = eval { $code->( ) } : $res = eval { $code->( ) };
   
   if( my $trans_error = $@ )
   {
@@ -392,7 +393,7 @@ sub do_transaction
   {
     # Success:
     $s->dbi_commit;
-    return $res;
+    wantarray ? return @res : return $res;
   }# end if()
 }# end do_transaction()
 
