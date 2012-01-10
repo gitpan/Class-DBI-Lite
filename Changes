@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.027   2012-01-10
+  - Setting $pager->page_number( 1 ) now works.
+
 1.026   2011-11-18
   - do_transaction will now look at wantarray and execute the transaction coderef
     in the appropriate list or scalar context, and return the appropriate result.

@@ -35,8 +35,29 @@ sub new
 }# end new()
 
 
+# Public read-write properties:
+sub page_number
+{
+  my $s = shift;
+  if( @_ )
+  {
+    $s->{page_number} = shift;
+
+    $s->{_fetched_once} = 0;
+    ($s->{stop_item}) = sort { $a <=> $b } (
+      $s->page_number * $s->page_size,
+      $s->total_items
+    );
+    $s->{start_item} = ( $s->page_number - 1 ) * $s->page_size + 1;
+  }
+  else
+  {
+    return $s->{page_number};
+  }# end if()
+}# end page_number()
+
+
 # Public read-only properties:
-sub page_number { shift->{page_number} }
 sub page_size   { shift->{page_size} }
 sub total_items { shift->{total_items} }
 sub total_pages { shift->{total_pages} }
@@ -288,7 +309,7 @@ Returns a new Pager object at the page number and page size specified.
 
 =head2 page_number
 
-Read only.  Returns the page number.
+Read-write.  Sets/gets the page number.
 
 =head2 page_size
 
