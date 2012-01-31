@@ -1,5 +1,8 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.028   2012-01-30
+  - No longer die on a failed class-load.
+
 1.027   2012-01-10
   - Setting $pager->page_number( 1 ) now works.
 

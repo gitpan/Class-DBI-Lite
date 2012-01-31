@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.027';
+our $VERSION = '1.028';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -1041,8 +1041,10 @@ sub load_class
   (my $file = "$class.pm") =~ s/::/\//g;
   unless( $INC{$file} )
   {
-    require $file;
-    $class->import;
+    eval {
+      require $file;
+      $class->import;
+    };
   }# end unless();
 }# end load_class()
 
