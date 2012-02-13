@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.028';
+our $VERSION = '1.029';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -192,29 +192,89 @@ sub connection
   
   return $class->db_Main unless @DSN;
   
+  $class->set_master( @DSN );
+  1;
+}# end connection()
+
+
+sub db_RO
+{
+  my $s = shift;
+  
+  # If we're inside a transaction or don't have any slaves, return the master:
+  unless( $s->db_Main->{AutoCommit} && $s->root_meta->has_slaves )
+  {
+    return $s->db_Main;
+  }# end unless()
+  
+  # Otherwise return the slave if we have any:
+  $s->root_meta->has_slaves ? $s->db_Slave : $s->db_Main;
+}# end db_RO()
+
+
+sub set_master
+{
+  my ($class, @DSN) = @_;
+  my $root = $class->root_meta;
+  
+  $class->_mk_connection('Main', @DSN);
+}# end set_master()
+
+
+sub set_slaves
+{
+  my ($class, @connections) = @_;
+  
+  my $root = $class->root_meta;
+  $root->add_slave( $_ ) for @connections;
+  
+  # Select a connection at random and use it:
+  my $conn = $connections[ int(rand() * @connections) - 1 ];
+  $class->_mk_connection('Slave', @$conn);
+}# end set_slaves()
+
+
+sub switch_slave
+{
+  my ($class, $trace) = @_;
+  
+  my $old_slave = $class->root_meta->slaves->[0];
+  $class->_mk_connection('Slave', @{ $class->root_meta->random_slave } );
+  my $new_slave = $class->root_meta->slaves->[0];
+  
+  warn "[Debug] Switched slave from $old_slave->[0] to $new_slave->[0]\n"
+    if $trace;
+}# end switch_slave()
+
+
+sub _mk_connection
+{
+  my ($class, $name, @DSN) = @_;
+  
   # Set up the root meta:
   no strict 'refs';
   no warnings 'redefine';
-  my $meta = Class::DBI::Lite::RootMeta->new(
-    \@DSN
-  );
-  my $caller = caller();
-  *{ "$caller\::root" } = sub { $caller };
-  *{ $class->root . "::root_meta" } = sub { $meta };
+  unless( eval { $class->root_meta } )
+  {
+    my $meta = Class::DBI::Lite::RootMeta->new(
+      \@DSN
+    );
+    my $caller = caller();
+    *{ "$caller\::root" } = sub { $caller };
+    *{ $class->root . "::root_meta" } = sub { $meta };
+  }# end unless()
   
   # Connect:
   undef(%Live_Objects);
   local $^W = 0;
-  $class->set_db('Main' => @DSN, {
+  $class->set_db($name => @DSN, {
 		RaiseError => 1,
 		AutoCommit => 1,
 		PrintError => 0,
 		Taint      => 1,
 		RootClass  => "DBIx::ContextualFetch"
   });
-  
-  1;
-}# end connection()
+}# end _mk_connection()
 
 
 #==============================================================================
@@ -483,7 +543,7 @@ sub ad_hoc
 {
   my ($s, %args) = @_;
   
-  my $sth = $s->db_Main->prepare( $args{sql} );
+  my $sth = $s->db_RO->prepare( $args{sql} );
   $args{args} ||= [ ];
   $args{isa}  ||= 'Class::DBI::Lite';
   $sth->execute( @{ $args{args} } );
@@ -519,7 +579,7 @@ sub retrieve_from_sql
     cluck "$class: search*($sql, values[" . join( ",", map {qq('$_')} @bind) . "])";
   }# end if()
   SCOPE: {
-    my $sth = $s->db_Main->prepare_cached( $sql );
+    my $sth = $s->db_RO->prepare_cached( $sql );
     $sth->execute( @bind );
     
     return $s->sth_to_objects( $sth, $sql );
@@ -603,7 +663,7 @@ sub count_search
     cluck "$class: count_search($sql, values[" . join( ",", map {qq('$_')} @sql_vals) . "])";
   }# end if()
   SCOPE: {
-    my $sth = $s->db_Main->prepare_cached( $sql );
+    my $sth = $s->db_RO->prepare_cached( $sql );
     $sth->execute( @sql_vals );
     my ($count) = $sth->fetchrow;
     $sth->finish();
@@ -645,7 +705,7 @@ sub count_search_like
     cluck "$class: count_search_like($sql, values[" . join( ",", map {qq('$_')} @sql_vals) . "])";
   }# end if()
   SCOPE: {
-    my $sth = $s->db_Main->prepare_cached( $sql );
+    my $sth = $s->db_RO->prepare_cached( $sql );
     $sth->execute( @sql_vals );
     my ($count) = $sth->fetchrow;
     $sth->finish();
@@ -741,7 +801,7 @@ sub sql_pager
   my $offset = $page_number == 1 ? 0 : ($page_number - 1) * $page_size;
 
   # Get the total items:
-  my $sth = $s->db_Main->prepare( $args->{count_sql} );
+  my $sth = $s->db_RO->prepare( $args->{count_sql} );
   $sth->execute( @{ $args->{sql_args} } );
   my ($total) = $sth->fetchrow;
   $sth->finish;
@@ -797,7 +857,7 @@ sub count_search_where
     cluck "$class: count_search_where($sql, values[" . join( ",", map {qq('$_')} @bind) . "])";
   }# end if()
   SCOPE: {
-    my $sth = $s->db_Main->prepare_cached($sql);
+    my $sth = $s->db_RO->prepare_cached($sql);
     $sth->execute( @bind );
     my ($count) = $sth->fetchrow;
     $sth->finish;
@@ -1068,7 +1128,7 @@ sub _flesh_out
     FROM @{[ $s->table ]}
     WHERE @{[ $s->primary_column ]} = ?
 
-  my $sth = $s->db_Main->prepare($sql);
+  my $sth = $s->db_RO->prepare($sql);
 
   if( $s->_meta->trace )
   {
@@ -1924,6 +1984,38 @@ Example:
   $artist->name( 'Big Bob' );
   
   $artist->discard_changes;
+
+=head1 ADVANCED TOPICS
+
+=head2 Master/Slave Configuration
+
+In your My::db::model class:
+
+Instead of:
+
+  __PACKAGE__->connection( $dsn, $user, $pass );
+
+Do this:
+
+  __PACKAGE__->set_master( $dsn, $user, $pass );
+
+  __PACKAGE__->set_slaves(
+    [ $dsn1, $user1, $pass1 ],
+    [ $dsn2, $user2, $pass2 ],
+    [ $dsn3, $user3, $pass3 ],
+  );
+
+Your slaves will be shuffled.
+
+Writes will always* go to the master, reads will always go to the slaves.
+
+*Unless you are inside of a transaction, in which case all reads will also go to the master.
+
+If you want to switch to a different slave, call 'switch_slave' on your main model class:
+
+  My::db::model->switch_slave();
+
+In an ASP4 environment you could add a line like that to an ASP4::RequestFilter.
 
 =head1 SEE ALSO
 

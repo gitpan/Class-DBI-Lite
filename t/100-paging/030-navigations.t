@@ -13,8 +13,9 @@ my $state = My::State->find_or_create(
 );
 
 My::City->do_transaction(sub {
+  My::City->db_Main->do("delete from cities");
   for(1..1000) {
-    My::City->find_or_create(
+    My::City->create(
       state_id  => $state->id,
       city_name => 'Unnamed City ' . sprintf('%04d', $_)
     );

@@ -1,5 +1,16 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.029   2012-02-13
+  - Added support for master/slaves setup.
+  - Multiple slaves are supported (there can only be one master).
+  - Slaves are always read from *unless* you are within a transaction.
+    In that case, all reads go to the master.
+  - All writes go to the master.
+  - You can change your slave connection at any time via ->switch_slave($debug).
+  - Passing a true value to ->switch_slave will cause a little message to be printed
+    to STDERR which looks like:
+      "[Debug] Switched slave from DBI:mysql:dbname:host1 to DBI:mysql:dbname:host2"
+
 1.028   2012-01-30
   - No longer die on a failed class-load.
 
