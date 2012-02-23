@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.029';
+our $VERSION = '1.030';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -259,7 +259,7 @@ sub _mk_connection
     my $meta = Class::DBI::Lite::RootMeta->new(
       \@DSN
     );
-    my $caller = caller();
+    my $caller = caller(2);
     *{ "$caller\::root" } = sub { $caller };
     *{ $class->root . "::root_meta" } = sub { $meta };
   }# end unless()

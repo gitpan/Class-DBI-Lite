@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.030   2012-02-22
+  - Fixed regression in 1.029 which caused db_Main to be reset each time
+    a new connection was defined.
+  - UPGRADE RECOMMENDED!
+
 1.029   2012-02-13
   - Added support for master/slaves setup.
   - Multiple slaves are supported (there can only be one master).
@@ -10,6 +15,7 @@ Revision history for Perl extension Class::DBI::Lite.
   - Passing a true value to ->switch_slave will cause a little message to be printed
     to STDERR which looks like:
       "[Debug] Switched slave from DBI:mysql:dbname:host1 to DBI:mysql:dbname:host2"
+  - Also updated the 'pagination' test so that it runs quicker.
 
 1.028   2012-01-30
   - No longer die on a failed class-load.
