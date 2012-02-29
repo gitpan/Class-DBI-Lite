@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.030';
+our $VERSION = '1.031';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -254,7 +254,7 @@ sub _mk_connection
   # Set up the root meta:
   no strict 'refs';
   no warnings 'redefine';
-  unless( eval { $class->root_meta } )
+  unless( $class->_has_root_meta )
   {
     my $meta = Class::DBI::Lite::RootMeta->new(
       \@DSN
@@ -262,6 +262,7 @@ sub _mk_connection
     my $caller = caller(2);
     *{ "$caller\::root" } = sub { $caller };
     *{ $class->root . "::root_meta" } = sub { $meta };
+    ${ $class->root . "::_has_root_meta" } = 1;
   }# end unless()
   
   # Connect:
@@ -294,6 +295,8 @@ sub root_meta
 
   ${"$root\::root_meta"};
 }# end root_meta()
+
+sub _has_root_meta { no strict 'refs'; my $root = $_[0]->root; ${"$root\::_has_root_meta"} }
 
 
 #==============================================================================
@@ -1531,6 +1534,24 @@ Same as this SQL:
 
 Because C<search_where> uses L<SQL::Abstract> to generate the SQL for the database,
 you can look there for more detailed examples.
+
+Specifying OrderBy, Limit and Offset separately:
+
+  my @artists = App::db::artist->search_where({
+    name => 'Bob Marley'
+  }, {
+    order_by  => 'name ASC',
+    limit     => $how_many,
+    offset    => $start_where,
+  });
+
+So if your C<$how_many> were 10, and your C<$start_where> were zero (C<0>) then that would be the same as:
+
+  SELECT *
+  FROM artists
+  WHERE name = 'Bob Marley'
+  ORDER BY name ASC
+  LIMIT 0, 10
 
 =head2 count_search( %args )
 

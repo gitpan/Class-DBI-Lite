@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.031   2012-02-29
+  - Special leap-day release.
+  - Documented the limit/offset/order_by way of calling ->search_where
+
 1.030   2012-02-22
   - Fixed regression in 1.029 which caused db_Main to be reset each time
     a new connection was defined.
