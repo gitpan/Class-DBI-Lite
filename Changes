@@ -1,5 +1,10 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.032   2012-03-02
+  - No longer depend on or use DBIx::ContextualFetch.
+  - RootMeta was not getting cached/setup correctly in ::Lite.  First attempt to fix this.
+  - Bumped version dependency of Ima::DBI::Contextual due to bugfixes/enhancements there.
+
 1.031   2012-02-29
   - Special leap-day release.
   - Documented the limit/offset/order_by way of calling ->search_where

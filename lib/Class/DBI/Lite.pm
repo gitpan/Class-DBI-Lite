@@ -18,7 +18,7 @@ use overload
   bool      => sub { eval { $_[0]->id } },
   fallback  => 1;
 
-our $VERSION = '1.031';
+our $VERSION = '1.032';
 our $meta;
 
 our %DBI_OPTIONS = (
@@ -226,7 +226,7 @@ sub set_slaves
   my ($class, @connections) = @_;
   
   my $root = $class->root_meta;
-  $root->add_slave( $_ ) for @connections;
+  $root->add_slave( $_ ) for grep { $_ } @connections;
   
   # Select a connection at random and use it:
   my $conn = $connections[ int(rand() * @connections) - 1 ];
@@ -246,7 +246,7 @@ sub switch_slave
     if $trace;
 }# end switch_slave()
 
-
+our $root_metas = { };
 sub _mk_connection
 {
   my ($class, $name, @DSN) = @_;
@@ -254,15 +254,20 @@ sub _mk_connection
   # Set up the root meta:
   no strict 'refs';
   no warnings 'redefine';
-  unless( $class->_has_root_meta )
+#  unless( $class->_has_root_meta )
+  my $meta_key = join ':', ( $class );
+  unless( $root_metas->{ $meta_key } )
   {
-    my $meta = Class::DBI::Lite::RootMeta->new(
+    $root_metas->{$meta_key} = Class::DBI::Lite::RootMeta->new(
       \@DSN
     );
     my $caller = caller(2);
     *{ "$caller\::root" } = sub { $caller };
-    *{ $class->root . "::root_meta" } = sub { $meta };
-    ${ $class->root . "::_has_root_meta" } = 1;
+    *{ $class->root . "::root_meta" } = sub {
+    #  use Data::Dumper; warn Dumper($root_metas); 
+      return $root_metas->{$meta_key};
+    };
+#    ${ $class->root . "::_has_root_meta" } = 1;
   }# end unless()
   
   # Connect:
@@ -273,7 +278,7 @@ sub _mk_connection
 		AutoCommit => 1,
 		PrintError => 0,
 		Taint      => 1,
-		RootClass  => "DBIx::ContextualFetch"
+#		RootClass  => "DBIx::ContextualFetch"
   });
 }# end _mk_connection()
 

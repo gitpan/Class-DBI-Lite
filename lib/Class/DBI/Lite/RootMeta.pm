@@ -13,6 +13,7 @@ our %instances = ( );
 sub new
 {
   my ($s, $dsn) = @_;
+#warn "$s.new(@$dsn) => host=" . ( $ENV{HTTP_HOST} || 'N/A' );
   
   my $key = join ':', @$dsn;
   if( my $inst = $instances{$key} )
