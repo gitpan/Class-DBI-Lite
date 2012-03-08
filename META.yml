@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Class-DBI-Lite
-version:             1.032
+version:             1.033
 abstract:            Lightweight ORM for Perl
 license:             Perl
 author:              
@@ -10,7 +10,7 @@ distribution_type:   module
 requires:     
     DBD::SQLite:                   0
     DBI:                           0
-    Ima::DBI::Contextual:          1.004
+    Ima::DBI::Contextual:          1.005
     SQL::Abstract:                 0
     SQL::Abstract::Limit:          0
     Test::Memory::Cycle:           0

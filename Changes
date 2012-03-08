@@ -1,5 +1,15 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.033   2012-03-08
+  - This release fixes a long-standing bug in Class::DBI::Lite::Pager->nagivations
+    which caused it to sometimes return '0' as the "start" position.
+    eg: my ($start, $stop) = $pager->navigations()
+    If you then did:
+    for my $page_number ($start..$stop) { # Make a hyperlink to $page_number }
+    Your first $page_number would sometimes be '0'
+  - Ray Baksh++ for submitting the patch at a ridiculous wee hour in the morning.
+    (Much appreciated!)
+
 1.032   2012-03-02
   - No longer depend on or use DBIx::ContextualFetch.
   - RootMeta was not getting cached/setup correctly in ::Lite.  First attempt to fix this.
