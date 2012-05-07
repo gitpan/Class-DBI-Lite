@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::DBI::Lite.
 
+1.034   2012-05-07
+  - DEPRECATED until further notice.
+    No other changes.
+
 1.033   2012-03-08
   - This release fixes a long-standing bug in Class::DBI::Lite::Pager->nagivations
     which caused it to sometimes return '0' as the "start" position.
